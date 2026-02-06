@@ -22,6 +22,13 @@ This is designed to work with **any IMAP provider**. Gmail is supported as a fir
 - Scheduling: `systemd --user` (templates planned)
 - Backup: user-selected (`restic`/`borg`/`rsync` or arbitrary command)
 
+## Development environment (container)
+A repeatable dev/runtime environment is provided via `Dockerfile.warp-env` (system packages + global tools only).
+
+Current contents:
+- base: `warpdotdev/dev-base:1`
+- installs: `isync` (mbsync), `notmuch`, `jq`
+
 ## Architecture notes (high level)
 - IMAP server → `mbsync` → local Maildir
 - Maildir → `notmuch new` → local index
@@ -31,6 +38,8 @@ This is designed to work with **any IMAP provider**. Gmail is supported as a fir
 
 ## Build / test commands (expected once scaffolding is added)
 These are the intended repo-local commands once Python packaging and tests land:
+- (Optional) Build the base environment image locally:
+  - `podman build --platform linux/amd64 -f Dockerfile.warp-env -t email-archiver-env:latest .`
 - Create venv + install in editable mode: `python -m venv .venv && . .venv/bin/activate && pip install -e '.[dev]'`
 - Run tests: `pytest`
 - Run formatting/linting (if added): `ruff check .` / `ruff format .`

@@ -9,6 +9,17 @@ If you are an automated coding agent working in this repo, use this as your oper
 - `SPEC.md`: interfaces (CLI/config/filesystem/systemd/templates), security requirements.
 - `PLAN.md`: build steps checklist for implementation.
 
+## Development environment (container)
+A repeatable development/runtime toolchain is provided via `Dockerfile.warp-env`.
+
+This Dockerfile is intended to install **system-level prerequisites** used by the project (not project-specific Python dependencies). It is currently based on `warpdotdev/dev-base:1` and adds:
+- `isync` (provides `mbsync`)
+- `notmuch`
+- `jq`
+
+Example build (Podman):
+- `podman build --platform linux/amd64 -f Dockerfile.warp-env -t email-archiver-env:latest .`
+
 ## Problem statement (from OVERVIEW)
 - Export **all emails** from an IMAP account.
 - Store locally in a **portable, open** format.
