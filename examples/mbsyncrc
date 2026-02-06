@@ -1,0 +1,67 @@
+# mbsync configuration template for email-archiver
+# Copy to: ~/.config/isync/mbsyncrc
+# Permissions: chmod 600 ~/.config/isync/mbsyncrc
+#
+# Gmail profile: syncs All Mail as canonical (avoids duplicates).
+# See OVERVIEW.md §9.3 for rationale.
+
+# --- IMAP Account ---
+IMAPAccount primary
+Host imap.gmail.com
+User user@gmail.com
+# NEVER store passwords in this file.
+# Use PassCmd to fetch from a secret manager:
+PassCmd "pass show email/gmail-app-password"
+SSLType IMAPS
+CertificateFile /etc/ssl/certs/ca-certificates.crt
+
+# --- Remote Store (IMAP) ---
+IMAPStore primary-remote
+Account primary
+
+# --- Local Store (Maildir) ---
+MaildirStore primary-local
+SubFolders Verbatim
+Path ~/Mail/imap/primary/
+Inbox ~/Mail/imap/primary/inbox/
+
+# --- Channels ---
+# Canonical: All Mail (Gmail dedupe strategy)
+Channel primary-all
+Far :primary-remote:"[Gmail]/All Mail"
+Near :primary-local:all-mail
+Create Near
+Expunge None
+SyncState *
+
+# Optional: Drafts
+Channel primary-drafts
+Far :primary-remote:"[Gmail]/Drafts"
+Near :primary-local:drafts
+Create Near
+Expunge None
+SyncState *
+
+# Optional: Spam (for completeness)
+Channel primary-spam
+Far :primary-remote:"[Gmail]/Spam"
+Near :primary-local:spam
+Create Near
+Expunge None
+SyncState *
+
+# Optional: Trash (for completeness)
+Channel primary-trash
+Far :primary-remote:"[Gmail]/Trash"
+Near :primary-local:trash
+Create Near
+Expunge None
+SyncState *
+
+# --- Group (used by email-archiver sync) ---
+Group primary
+Channel primary-all
+Channel primary-drafts
+# Uncomment if you want spam/trash:
+# Channel primary-spam
+# Channel primary-trash

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run email-archiver periodically
+
+[Timer]
+# Run once per hour, with a random delay up to 5 minutes to avoid thundering herd
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

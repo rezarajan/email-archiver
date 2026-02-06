@@ -1,0 +1,17 @@
+[Unit]
+Description=email-archiver: sync, index, verify, and backup IMAP mailbox
+Documentation=https://github.com/YOUR_USER/email-archiver
+
+[Service]
+Type=oneshot
+# Adjust the path to your virtualenv or installed location
+ExecStart=%h/.local/bin/email-archiver run
+# Ensure notmuch and mbsync are on PATH
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Logging goes to journald automatically
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

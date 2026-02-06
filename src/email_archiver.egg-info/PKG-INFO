@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: email-archiver
+Version: 0.1.0
+Summary: CLI tool to archive IMAP mailboxes to local Maildir, index for search, and verify before deletion.
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"

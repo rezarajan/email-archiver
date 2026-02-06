@@ -1,0 +1,31 @@
+# email-archiver configuration
+# Copy to: ~/.config/email-archiver/config.toml
+
+[account.primary]
+email = "user@example.com"
+imap_host = "imap.example.com"
+imap_user = "user@example.com"
+# Password should be retrieved at runtime via mbsync PassCmd (recommended).
+# Gmail note: an App Password is often used when 2FA is enabled.
+
+[paths]
+maildir_root = "~/Mail/imap"
+state_dir = "~/.local/state/email-archiver"
+logs_dir = "~/.local/state/email-archiver/logs"
+verification_dir = "~/.local/state/email-archiver/verification"
+
+[mbsync]
+config_path = "~/.config/isync/mbsyncrc"
+group = "primary"
+
+[notmuch]
+config_path = "~/.notmuch-config"
+
+[backup]
+# mode can be "command", "restic", "borg", or "rsync"
+mode = "command"
+command = "restic backup ~/Mail/imap"
+
+[orchestration]
+# If true, `run` will call backup after verify succeeds
+backup_after_verify = true
