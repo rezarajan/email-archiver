@@ -2,14 +2,24 @@
 #
 # Usage:
 #   One-shot run:   docker compose run --rm email-archiver run
-#   Start service:  docker compose up -d
-#   View logs:      docker compose logs -f
+#   Start service:  docker compose up -d scheduler
+#   View logs:      docker compose logs -f scheduler
 #   Stop service:   docker compose down
 #
 # Before first use, copy and edit the config files:
 #   cp examples/config.toml  ~/.config/email-archiver/config.toml
 #   cp examples/mbsyncrc     ~/.config/isync/mbsyncrc
 #   cp examples/notmuch-config ~/.notmuch-config
+#
+# Credential passing — choose one:
+#   A) Secret file (recommended):
+#        echo 'your-app-password' > ~/.config/email-archiver/imap_password
+#        chmod 600 ~/.config/email-archiver/imap_password
+#      Then in mbsyncrc use: PassCmd "cat /run/secrets/imap_password"
+#
+#   B) Environment variable:
+#        export IMAP_PASSWORD='your-app-password'
+#      Then in mbsyncrc use: PassCmd "printenv IMAP_PASSWORD"
 #
 # See README.md for full setup instructions.
 
@@ -19,6 +29,10 @@ x-volumes: &common-volumes
   - ${EA_NOTMUCH_CONFIG:-~/.notmuch-config}:/home/archiver/.notmuch-config:ro
   - ${EA_MAILDIR:-~/Mail/imap}:/home/archiver/Mail/imap
   - ${EA_STATE_DIR:-~/.local/state/email-archiver}:/home/archiver/.local/state/email-archiver
+
+secrets:
+  imap_password:
+    file: ${EA_IMAP_PASSWORD_FILE:-~/.config/email-archiver/imap_password}
 
 services:
   # ── One-shot: docker compose run --rm email-archiver <command> ──
@@ -30,10 +44,14 @@ services:
         GID: ${EA_GID:-1000}
     image: email-archiver:latest
     volumes: *common-volumes
+    secrets:
+      - imap_password
+    environment:
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     # Default entrypoint is "email-archiver"; pass any subcommand after
     # the image name, e.g.: docker compose run --rm email-archiver doctor
 
-  # ── Scheduled service: docker compose up -d ──
+  # ── Scheduled service: docker compose up -d scheduler ──
   scheduler:
     build:
       context: .
@@ -43,7 +61,10 @@ services:
     image: email-archiver:latest
     entrypoint: ["/usr/local/bin/scheduler"]
     volumes: *common-volumes
+    secrets:
+      - imap_password
     environment:
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       # Seconds between runs (default: 3600 = 1 hour)
       SCHEDULE_INTERVAL: ${EA_SCHEDULE_INTERVAL:-3600}
       # Extra args for email-archiver run (e.g. "--verbose")

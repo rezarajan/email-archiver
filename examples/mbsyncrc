@@ -10,7 +10,20 @@ IMAPAccount primary
 Host imap.gmail.com
 User user@gmail.com
 # NEVER store passwords in this file.
-# Use PassCmd to fetch from a secret manager:
+#
+# Choose ONE PassCmd method:
+#
+# Option 1 — password store (native install):
+#PassCmd "pass show email/gmail-app-password"
+#
+# Option 2 — secret file (Docker / Compose recommended):
+#   Mount a file containing only the password to /run/secrets/imap_password
+#PassCmd "cat /run/secrets/imap_password"
+#
+# Option 3 — environment variable (Docker simple):
+#   Pass IMAP_PASSWORD via docker run -e or compose environment:
+#PassCmd "printenv IMAP_PASSWORD"
+#
 PassCmd "pass show email/gmail-app-password"
 SSLType IMAPS
 CertificateFile /etc/ssl/certs/ca-certificates.crt

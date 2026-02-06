@@ -47,6 +47,68 @@ mkdir -p ~/.config/email-archiver ~/.config/isync
 mkdir -p ~/.local/state/email-archiver
 ```
 
+### Passing the IMAP password to the container
+
+On a native install, mbsync typically fetches the password via `PassCmd "pass show ..."`, which requires the host's GPG keyring. Inside a container this isn't available, so you need one of the following methods.
+
+**Option A — Secret file (recommended):**
+
+Create a file containing only the password:
+
+```bash
+echo 'your-app-password' > ~/.config/email-archiver/imap_password
+chmod 600 ~/.config/email-archiver/imap_password
+```
+
+Set this in your `~/.config/isync/mbsyncrc`:
+
+```
+PassCmd "cat /run/secrets/imap_password"
+```
+
+Mount the file when using `docker run`:
+
+```bash
+docker run --rm \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
+  ...  # other volume mounts
+  email-archiver run
+```
+
+With Docker Compose this is handled automatically via the `secrets:` directive (see the Docker Compose section).
+
+**Option B — Environment variable:**
+
+Set this in your `~/.config/isync/mbsyncrc`:
+
+```
+PassCmd "printenv IMAP_PASSWORD"
+```
+
+Pass the variable at run time:
+
+```bash
+docker run --rm -e IMAP_PASSWORD \
+  ...  # other volume mounts
+  email-archiver run
+```
+
+> **Note:** Environment variables are visible in `docker inspect` output. Prefer the secret-file method for production use.
+
+**Option C — Mount the host's `pass` / GPG keyring (advanced):**
+
+If you already use `pass` on the host, you can mount both stores:
+
+```bash
+docker run --rm \
+  -v ~/.gnupg:/home/archiver/.gnupg:ro \
+  -v ~/.password-store:/home/archiver/.password-store:ro \
+  ...  # other volume mounts
+  email-archiver run
+```
+
+This lets the container's `PassCmd "pass show ..."` work as-is. Note that GPG agent socket forwarding can be unreliable across container boundaries; `gpg-agent` may need `--allow-preset-passphrase` or the key must have no passphrase.
+
 ### Run a command
 
 The container entrypoint is `email-archiver`, so append any subcommand directly:
@@ -55,6 +117,7 @@ The container entrypoint is `email-archiver`, so append any subcommand directly:
 # Doctor check
 docker run --rm \
   -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
   -v ~/.config/isync:/home/archiver/.config/isync:ro \
   -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
   -v ~/Mail/imap:/home/archiver/Mail/imap \
@@ -64,6 +127,7 @@ docker run --rm \
 # Full pipeline (sync → index → verify → backup)
 docker run --rm \
   -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
   -v ~/.config/isync:/home/archiver/.config/isync:ro \
   -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
   -v ~/Mail/imap:/home/archiver/Mail/imap \
@@ -80,6 +144,7 @@ Add to your `~/.zshrc` or `~/.bashrc` for convenience:
 ```bash
 alias email-archiver='docker run --rm \
   -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
   -v ~/.config/isync:/home/archiver/.config/isync:ro \
   -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
   -v ~/Mail/imap:/home/archiver/Mail/imap \
@@ -125,11 +190,27 @@ docker compose logs -f scheduler
 docker compose down
 ```
 
+Credentials are handled automatically by Compose. If using the **secret file** method (recommended), create the file and Compose will mount it to `/run/secrets/imap_password`:
+
+```bash
+echo 'your-app-password' > ~/.config/email-archiver/imap_password
+chmod 600 ~/.config/email-archiver/imap_password
+```
+
+Alternatively, for the **environment variable** method:
+
+```bash
+export IMAP_PASSWORD='your-app-password'
+docker compose up -d scheduler
+```
+
 **Environment variables** (set in shell or a `.env` file):
 
 - `EA_UID` / `EA_GID` — host user/group ID for file ownership (default: `1000`)
 - `EA_SCHEDULE_INTERVAL` — seconds between runs (default: `3600`)
 - `EA_ARCHIVER_ARGS` — extra flags for `email-archiver run` (e.g. `--verbose`)
+- `EA_IMAP_PASSWORD_FILE` — path to password file (default: `~/.config/email-archiver/imap_password`)
+- `IMAP_PASSWORD` — IMAP password via env var (alternative to secret file)
 - `EA_CONFIG_DIR` — override config dir (default: `~/.config/email-archiver`)
 - `EA_ISYNC_DIR` — override isync config dir (default: `~/.config/isync`)
 - `EA_NOTMUCH_CONFIG` — override notmuch config path (default: `~/.notmuch-config`)
