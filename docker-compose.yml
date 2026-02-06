@@ -1,0 +1,51 @@
+# docker-compose.yml — email-archiver
+#
+# Usage:
+#   One-shot run:   docker compose run --rm email-archiver run
+#   Start service:  docker compose up -d
+#   View logs:      docker compose logs -f
+#   Stop service:   docker compose down
+#
+# Before first use, copy and edit the config files:
+#   cp examples/config.toml  ~/.config/email-archiver/config.toml
+#   cp examples/mbsyncrc     ~/.config/isync/mbsyncrc
+#   cp examples/notmuch-config ~/.notmuch-config
+#
+# See README.md for full setup instructions.
+
+x-volumes: &common-volumes
+  - ${EA_CONFIG_DIR:-~/.config/email-archiver}:/home/archiver/.config/email-archiver:ro
+  - ${EA_ISYNC_DIR:-~/.config/isync}:/home/archiver/.config/isync:ro
+  - ${EA_NOTMUCH_CONFIG:-~/.notmuch-config}:/home/archiver/.notmuch-config:ro
+  - ${EA_MAILDIR:-~/Mail/imap}:/home/archiver/Mail/imap
+  - ${EA_STATE_DIR:-~/.local/state/email-archiver}:/home/archiver/.local/state/email-archiver
+
+services:
+  # ── One-shot: docker compose run --rm email-archiver <command> ──
+  email-archiver:
+    build:
+      context: .
+      args:
+        UID: ${EA_UID:-1000}
+        GID: ${EA_GID:-1000}
+    image: email-archiver:latest
+    volumes: *common-volumes
+    # Default entrypoint is "email-archiver"; pass any subcommand after
+    # the image name, e.g.: docker compose run --rm email-archiver doctor
+
+  # ── Scheduled service: docker compose up -d ──
+  scheduler:
+    build:
+      context: .
+      args:
+        UID: ${EA_UID:-1000}
+        GID: ${EA_GID:-1000}
+    image: email-archiver:latest
+    entrypoint: ["/usr/local/bin/scheduler"]
+    volumes: *common-volumes
+    environment:
+      # Seconds between runs (default: 3600 = 1 hour)
+      SCHEDULE_INTERVAL: ${EA_SCHEDULE_INTERVAL:-3600}
+      # Extra args for email-archiver run (e.g. "--verbose")
+      ARCHIVER_ARGS: ${EA_ARCHIVER_ARGS:-}
+    restart: unless-stopped

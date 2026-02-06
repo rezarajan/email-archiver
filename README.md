@@ -26,7 +26,117 @@ pip install -e '.[dev]'
 
 This installs the `email-archiver` CLI.
 
-## Quick Start
+## Running with Docker
+
+You can run email-archiver without installing anything locally (besides Docker/Podman).
+
+### Build the image
+
+```bash
+# Match your host UID/GID so bind-mounted files keep correct ownership
+docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t email-archiver .
+```
+
+### Prepare host config and data directories
+
+The container expects the same config files as a native install. Create them on the host first (see the Quick Start section below), then bind-mount them in.
+
+```bash
+mkdir -p ~/Mail/imap
+mkdir -p ~/.config/email-archiver ~/.config/isync
+mkdir -p ~/.local/state/email-archiver
+```
+
+### Run a command
+
+The container entrypoint is `email-archiver`, so append any subcommand directly:
+
+```bash
+# Doctor check
+docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/isync:/home/archiver/.config/isync:ro \
+  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver doctor
+
+# Full pipeline (sync → index → verify → backup)
+docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/isync:/home/archiver/.config/isync:ro \
+  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver run
+```
+
+> **Tip:** Replace `docker` with `podman` if you prefer rootless containers.
+
+### Optional: shell alias
+
+Add to your `~/.zshrc` or `~/.bashrc` for convenience:
+
+```bash
+alias email-archiver='docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/isync:/home/archiver/.config/isync:ro \
+  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver'
+```
+
+Then use it as if installed natively: `email-archiver run`, `email-archiver verify`, etc.
+
+### Docker Compose
+
+A `docker-compose.yml` is provided with two services:
+
+- **`email-archiver`** — one-shot, for running individual commands
+- **`scheduler`** — long-running service that runs `email-archiver run` on a configurable interval
+
+**Build:**
+
+```bash
+# Set EA_UID / EA_GID to match your host user (defaults to 1000)
+export EA_UID=$(id -u) EA_GID=$(id -g)
+docker compose build
+```
+
+**One-shot commands:**
+
+```bash
+docker compose run --rm email-archiver doctor
+docker compose run --rm email-archiver run
+docker compose run --rm email-archiver verify
+```
+
+**Start the scheduled service (runs hourly by default):**
+
+```bash
+# Start in background
+docker compose up -d scheduler
+
+# View logs
+docker compose logs -f scheduler
+
+# Stop
+docker compose down
+```
+
+**Environment variables** (set in shell or a `.env` file):
+
+- `EA_UID` / `EA_GID` — host user/group ID for file ownership (default: `1000`)
+- `EA_SCHEDULE_INTERVAL` — seconds between runs (default: `3600`)
+- `EA_ARCHIVER_ARGS` — extra flags for `email-archiver run` (e.g. `--verbose`)
+- `EA_CONFIG_DIR` — override config dir (default: `~/.config/email-archiver`)
+- `EA_ISYNC_DIR` — override isync config dir (default: `~/.config/isync`)
+- `EA_NOTMUCH_CONFIG` — override notmuch config path (default: `~/.notmuch-config`)
+- `EA_MAILDIR` — override Maildir path (default: `~/Mail/imap`)
+- `EA_STATE_DIR` — override state dir (default: `~/.local/state/email-archiver`)
+
+## Quick Start (native install)
 
 ### 1. Configure mbsync
 
