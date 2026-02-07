@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from email_archiver.config import Config
+from email_archiver.generate import ensure_notmuch_init, write_generated_configs
 from email_archiver.runner import RunResult, run_command
 
 # Verification MUST fail closed: if checks cannot run, status is FAIL.
@@ -16,14 +17,13 @@ STATUS_PASS = "PASS"
 STATUS_FAIL = "FAIL"
 
 
-def _notmuch_env(config: Config) -> dict[str, str]:
-    assert config.notmuch is not None
-    return {**os.environ, "NOTMUCH_CONFIG": str(config.notmuch.config_path)}
+def _notmuch_env(notmuch_config_path: Path) -> dict[str, str]:
+    return {**os.environ, "NOTMUCH_CONFIG": str(notmuch_config_path)}
 
 
-def _get_message_count(config: Config) -> tuple[RunResult, int | None]:
+def _get_message_count(notmuch_config_path: Path) -> tuple[RunResult, int | None]:
     """Get total message count from notmuch."""
-    env = _notmuch_env(config)
+    env = _notmuch_env(notmuch_config_path)
     result = run_command(["notmuch", "count", "*"], env=env)
     if result.ok:
         try:
@@ -34,13 +34,13 @@ def _get_message_count(config: Config) -> tuple[RunResult, int | None]:
     return result, None
 
 
-def _get_date_boundary(config: Config, sort: str) -> tuple[RunResult, str | None]:
+def _get_date_boundary(notmuch_config_path: Path, sort: str) -> tuple[RunResult, str | None]:
     """Get oldest or newest message date.
 
     Args:
         sort: 'oldest-first' or 'newest-first'
     """
-    env = _notmuch_env(config)
+    env = _notmuch_env(notmuch_config_path)
     result = run_command(
         ["notmuch", "search", "--format=json", f"--sort={sort}", "--limit=1", "*"],
         env=env,
@@ -76,16 +76,10 @@ def _build_report(
     if checks_ran and message_count > 0 and oldest_date and newest_date:
         status = STATUS_PASS
 
-    assert config.mbsync is not None
     return {
         "timestamp": now,
         "account": account,
-        "mbsync": {
-            "config_path": str(config.mbsync.config_path),
-            "group": config.mbsync.group,
-        },
         "notmuch": {
-            "config_path": str(config.notmuch.config_path) if config.notmuch else "",
             "total_message_count": message_count,
         },
         "coverage": {
@@ -126,23 +120,30 @@ def run_verify(
     *,
     account: str | None = None,
     verbose: bool = False,
+    notmuch_config_path: Path | None = None,
 ) -> dict[str, Any]:
     """Run verification checks and write a report.
 
     Returns:
         The verification report dict (with 'status' of PASS or FAIL).
     """
+    if notmuch_config_path is None:
+        _, notmuch_config_path = write_generated_configs(config)
+
+    # Auto-initialize notmuch database if needed
+    ensure_notmuch_init(config, notmuch_config_path)
+
     acct_name = account or "default"
     print(f"Running verification for account '{acct_name}'...")
 
     # 1. Get message count
-    count_result, message_count = _get_message_count(config)
+    count_result, message_count = _get_message_count(notmuch_config_path)
     if verbose:
         print(f"  notmuch count: {message_count}")
 
     # 2. Get date boundaries
-    _, oldest_date = _get_date_boundary(config, "oldest-first")
-    _, newest_date = _get_date_boundary(config, "newest-first")
+    _, oldest_date = _get_date_boundary(notmuch_config_path, "oldest-first")
+    _, newest_date = _get_date_boundary(notmuch_config_path, "newest-first")
     if verbose:
         print(f"  oldest message: {oldest_date}")
         print(f"  newest message: {newest_date}")

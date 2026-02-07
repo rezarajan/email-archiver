@@ -1,10 +1,112 @@
 # email-archiver
 
-CLI tool to archive IMAP mailboxes (including Gmail) to local Maildir storage, index for fast local search, generate verification reports, and support safe deletion from the remote server.
+Archive IMAP mailboxes (including Gmail) to local Maildir, index for full-text search, and verify before deleting from the server.
 
-## Prerequisites
+You only need **one config file** (`config.toml`). mbsync and notmuch configs are generated automatically. The IMAP password is provided via a file at `/run/secrets/imap_password` — no env vars, no GPG.
 
-Install system-level dependencies:
+## Quick Start (Docker / Podman)
+
+This is the recommended way to run email-archiver.
+
+### 1. Create directories and config
+
+```bash
+mkdir -p ~/.config/email-archiver ~/Mail/imap ~/.local/state/email-archiver
+cp examples/config.toml ~/.config/email-archiver/config.toml
+```
+
+Edit `~/.config/email-archiver/config.toml`:
+
+```toml
+[account.primary]
+email = "you@example.com"
+imap_host = "imap.example.com"
+imap_user = "you@example.com"
+ssl_type = "IMAPS"
+folders = ["INBOX", "Archive", "Sent"]
+# Gmail: use folders = ["[Gmail]/All Mail"] to avoid duplicates
+
+[paths]
+maildir_root = "/home/archiver/Mail/imap"      # container path
+state_dir = "/home/archiver/.local/state/email-archiver"
+
+[backup]
+command = "restic backup /home/archiver/Mail/imap"
+
+[orchestration]
+backup_after_verify = true
+```
+
+### 2. Create the password file
+
+```bash
+echo -n 'your-app-password' > ~/.config/email-archiver/imap_password
+chmod 600 ~/.config/email-archiver/imap_password
+```
+
+### 3. Build and run
+
+```bash
+# Build
+docker build -t email-archiver .
+
+# Check prerequisites
+docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver doctor
+
+# Full pipeline
+docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver run
+```
+
+> Replace `docker` with `podman` for rootless containers. Add `--userns=keep-id` with Podman.
+
+### Shell alias (optional)
+
+```bash
+alias email-archiver='docker run --rm \
+  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
+  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
+  -v ~/Mail/imap:/home/archiver/Mail/imap \
+  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
+  email-archiver'
+```
+
+Then: `email-archiver run`, `email-archiver verify`, etc.
+
+### Docker Compose
+
+A compose file is at `docker/docker-compose.yml` with two services:
+
+- **cli** — one-shot commands (`docker compose run --rm cli doctor`)
+- **scheduler** — runs `email-archiver run` on a timer (default: hourly)
+
+Set paths in a `.env` file:
+
+```bash
+CONFIG_PATH=~/.config/email-archiver
+DATA_PATH=~/Mail/imap
+STATE_PATH=~/.local/state/email-archiver
+PASSWORD_FILE=~/.config/email-archiver/imap_password
+SCHEDULE_INTERVAL=3600
+```
+
+```bash
+docker compose -f docker/docker-compose.yml run --rm cli doctor
+docker compose -f docker/docker-compose.yml up -d scheduler
+```
+
+## Quick Start (native install)
+
+### Prerequisites
 
 ```bash
 # Arch Linux
@@ -14,342 +116,122 @@ sudo pacman -S isync notmuch
 sudo apt install isync notmuch
 ```
 
-Optional: a backup tool such as `restic`, `borg`, or `rsync`.
+Optional backup tool: `restic`, `borg`, or `rsync`.
 
-## Installation
+### Install
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e .
 ```
 
-This installs the `email-archiver` CLI.
-
-## Running with Docker
-
-You can run email-archiver without installing anything locally (besides Docker/Podman).
-
-### Build the image
-
-```bash
-docker build -t email-archiver .
-```
-
-### Prepare host config and data directories
-
-The container expects the same config files as a native install. Create them on the host first (see the Quick Start section below), then bind-mount them in.
-
-```bash
-mkdir -p ~/Mail/imap
-mkdir -p ~/.config/email-archiver ~/.config/isync
-mkdir -p ~/.local/state/email-archiver
-```
-
-### Passing the IMAP password to the container
-
-On a native install, mbsync typically fetches the password via `PassCmd "pass show ..."`, which requires the host's GPG keyring. Inside a container this isn't available, so you need one of the following methods.
-
-**Option A — Secret file (recommended):**
-
-Create a file containing only the password:
-
-```bash
-echo 'your-app-password' > ~/.config/email-archiver/imap_password
-chmod 600 ~/.config/email-archiver/imap_password
-```
-
-Set this in your `~/.config/isync/mbsyncrc`:
-
-```
-PassCmd "cat /run/secrets/imap_password"
-```
-
-Mount the file when using `docker run`:
-
-```bash
-docker run --rm \
-  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
-  ...  # other volume mounts
-  email-archiver run
-```
-
-With Docker Compose this is handled automatically via the `secrets:` directive (see the Docker Compose section).
-
-**Option B — Environment variable:**
-
-Set this in your `~/.config/isync/mbsyncrc`:
-
-```
-PassCmd "printenv IMAP_PASSWORD"
-```
-
-Pass the variable at run time:
-
-```bash
-docker run --rm -e IMAP_PASSWORD \
-  ...  # other volume mounts
-  email-archiver run
-```
-
-> **Note:** Environment variables are visible in `docker inspect` output. Prefer the secret-file method for production use.
-
-**Option C — Mount the host's `pass` / GPG keyring (advanced):**
-
-If you already use `pass` on the host, you can mount both stores:
-
-```bash
-docker run --rm \
-  -v ~/.gnupg:/home/archiver/.gnupg:ro \
-  -v ~/.password-store:/home/archiver/.password-store:ro \
-  ...  # other volume mounts
-  email-archiver run
-```
-
-This lets the container's `PassCmd "pass show ..."` work as-is. Note that GPG agent socket forwarding can be unreliable across container boundaries; `gpg-agent` may need `--allow-preset-passphrase` or the key must have no passphrase.
-
-### Run a command
-
-The container entrypoint is `email-archiver`, so append any subcommand directly:
-
-```bash
-# Doctor check
-docker run --rm \
-  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
-  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
-  -v ~/.config/isync:/home/archiver/.config/isync:ro \
-  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
-  -v ~/Mail/imap:/home/archiver/Mail/imap \
-  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
-  email-archiver doctor
-
-# Full pipeline (sync → index → verify → backup)
-docker run --rm \
-  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
-  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
-  -v ~/.config/isync:/home/archiver/.config/isync:ro \
-  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
-  -v ~/Mail/imap:/home/archiver/Mail/imap \
-  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
-  email-archiver run
-```
-
-> **Tip:** Replace `docker` with `podman` if you prefer rootless containers.
-
-### Optional: shell alias
-
-Add to your `~/.zshrc` or `~/.bashrc` for convenience:
-
-```bash
-alias email-archiver='docker run --rm \
-  -v ~/.config/email-archiver:/home/archiver/.config/email-archiver:ro \
-  -v ~/.config/email-archiver/imap_password:/run/secrets/imap_password:ro \
-  -v ~/.config/isync:/home/archiver/.config/isync:ro \
-  -v ~/.notmuch-config:/home/archiver/.notmuch-config:ro \
-  -v ~/Mail/imap:/home/archiver/Mail/imap \
-  -v ~/.local/state/email-archiver:/home/archiver/.local/state/email-archiver \
-  email-archiver'
-```
-
-Then use it as if installed natively: `email-archiver run`, `email-archiver verify`, etc.
-
-### Docker Compose
-
-A `docker-compose.yml` is provided with two services:
-
-- **`email-archiver`** — one-shot, for running individual commands
-- **`scheduler`** — long-running service that runs `email-archiver run` on a configurable interval
-
-**Build:**
-
-```bash
-# Set EA_UID / EA_GID to match your host user (defaults to 1000)
-export EA_UID=$(id -u) EA_GID=$(id -g)
-docker compose build
-```
-
-**One-shot commands:**
-
-```bash
-docker compose run --rm email-archiver doctor
-docker compose run --rm email-archiver run
-docker compose run --rm email-archiver verify
-```
-
-**Start the scheduled service (runs hourly by default):**
-
-```bash
-# Start in background
-docker compose up -d scheduler
-
-# View logs
-docker compose logs -f scheduler
-
-# Stop
-docker compose down
-```
-
-Credentials are handled automatically by Compose. If using the **secret file** method (recommended), create the file and Compose will mount it to `/run/secrets/imap_password`:
-
-```bash
-echo 'your-app-password' > ~/.config/email-archiver/imap_password
-chmod 600 ~/.config/email-archiver/imap_password
-```
-
-Alternatively, for the **environment variable** method:
-
-```bash
-export IMAP_PASSWORD='your-app-password'
-docker compose up -d scheduler
-```
-
-**Environment variables** (set in shell or a `.env` file):
-
-- `EA_UID` / `EA_GID` — host user/group ID for file ownership (default: `1000`)
-- `EA_SCHEDULE_INTERVAL` — seconds between runs (default: `3600`)
-- `EA_ARCHIVER_ARGS` — extra flags for `email-archiver run` (e.g. `--verbose`)
-- `EA_IMAP_PASSWORD_FILE` — path to password file (default: `~/.config/email-archiver/imap_password`)
-- `IMAP_PASSWORD` — IMAP password via env var (alternative to secret file)
-- `EA_CONFIG_DIR` — override config dir (default: `~/.config/email-archiver`)
-- `EA_ISYNC_DIR` — override isync config dir (default: `~/.config/isync`)
-- `EA_NOTMUCH_CONFIG` — override notmuch config path (default: `~/.notmuch-config`)
-- `EA_MAILDIR` — override Maildir path (default: `~/Mail/imap`)
-- `EA_STATE_DIR` — override state dir (default: `~/.local/state/email-archiver`)
-
-## Quick Start (native install)
-
-### 1. Configure mbsync
-
-Copy and edit the template:
-
-```bash
-mkdir -p ~/.config/isync
-cp examples/mbsyncrc ~/.config/isync/mbsyncrc
-chmod 600 ~/.config/isync/mbsyncrc
-# Edit: set your IMAP host, user, and PassCmd
-```
-
-**Important:** Never store passwords in config files. Use `PassCmd` to fetch credentials from a secret manager (e.g. `pass`).
-
-For Gmail: use an App Password (when 2FA is enabled) and the Gmail profile (sync `[Gmail]/All Mail` only) to avoid duplicates.
-
-### 2. Configure notmuch
-
-```bash
-cp examples/notmuch-config ~/.notmuch-config
-# Edit: set database path and email
-```
-
-### 3. Configure email-archiver
+### Configure
 
 ```bash
 mkdir -p ~/.config/email-archiver
 cp examples/config.toml ~/.config/email-archiver/config.toml
-# Edit: set account details, paths, and backup command
+# Edit: account details, folders, paths, backup command
 ```
 
-### 4. Validate setup
+Create the password file:
 
 ```bash
-email-archiver doctor
+echo -n 'your-app-password' > /run/secrets/imap_password
+# Or symlink: ln -s ~/.config/email-archiver/imap_password /run/secrets/imap_password
 ```
 
-### 5. Run the pipeline
+### Run
 
 ```bash
-# Individual steps:
-email-archiver sync
-email-archiver index
-email-archiver verify
-email-archiver backup
-
-# Or all at once (sync → index → verify → backup):
-email-archiver run
+email-archiver doctor   # validate setup
+email-archiver run      # sync → index → verify → backup
 ```
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `sync` | Run mbsync to sync IMAP → Maildir |
-| `index` | Run notmuch new to index the Maildir |
-| `verify` | Run completeness checks, write JSON + text report |
-| `backup` | Run the configured backup command |
-| `run` | Orchestrated pipeline: sync → index → verify → backup |
-| `doctor` | Validate prerequisites, config, and paths |
+- **`sync`** — Run mbsync to download IMAP → Maildir
+- **`index`** — Run `notmuch new` to index the Maildir (auto-initializes on first run)
+- **`verify`** — Check message counts and date coverage, write JSON + text report
+- **`backup`** — Run the configured backup command
+- **`run`** — Orchestrated pipeline: sync → index → verify → (optional) backup
+- **`doctor`** — Validate prerequisites, config, paths, and password file
 
-### Common flags
+### Flags
 
-- `--config PATH` / `-c PATH` — Override config file location
-- `--account NAME` / `-a NAME` — Select a specific account
+- `--config PATH` / `-c` — Override config file
+- `--account NAME` / `-a` — Target a specific account
 - `--verbose` / `-v` — Verbose output
-- `--dry-run` — Print commands without executing
+- `--dry-run` — Show what would run without executing
 
-## Scheduling with systemd
+## Configuration
 
-Install the user units:
+Everything is in a single `config.toml`. See [`examples/config.toml`](examples/config.toml) for the full reference.
+
+```toml
+[account.primary]
+email = "you@example.com"
+imap_host = "imap.example.com"
+imap_user = "you@example.com"
+ssl_type = "IMAPS"                     # IMAPS, STARTTLS, or None
+folders = ["INBOX", "Archive", "Sent"]  # which IMAP folders to sync
+
+[paths]
+maildir_root = "~/Mail/imap"
+state_dir = "~/.local/state/email-archiver"
+
+[backup]
+command = "restic backup ~/Mail/imap"
+
+[orchestration]
+backup_after_verify = true
+```
+
+**What gets auto-generated:** mbsync config, notmuch config, and the notmuch database (on first run). These are written to `<state_dir>/generated/`.
+
+**Password:** Always read from `/run/secrets/imap_password`. In containers this is a bind mount; on bare metal, write or symlink the file.
+
+## Scheduling
+
+### systemd (native)
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cp systemd/email-archiver-run.service ~/.config/systemd/user/
-cp systemd/email-archiver-run.timer ~/.config/systemd/user/
+cp systemd/email-archiver-run.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now email-archiver-run.timer
 ```
 
-Check status:
+### Docker Compose (container)
 
-```bash
-systemctl --user status email-archiver-run.timer
-journalctl --user -u email-archiver-run.service
-```
+The `scheduler` service in `docker/docker-compose.yml` runs on a loop. Set `SCHEDULE_INTERVAL` in your `.env`.
 
-## Verification Reports
+## Verification & Safety
 
-Each `verify` run writes:
-- A JSON report to `~/.local/state/email-archiver/verification/<account>/`
-- A human-readable text summary alongside it
+Each `verify` writes a JSON and text report to `<state_dir>/verification/<account>/`. Reports include timestamp, message count, date coverage, and PASS/FAIL status. Verification **fails closed** — if checks can't run, the result is FAIL.
 
-Reports include: timestamp, account, message count, oldest/newest message dates, and PASS/FAIL status.
+Deletion from the remote server is **not automated**. The recommended workflow:
 
-Verification **fails closed**: if checks cannot run, the status is FAIL.
-
-## Safety Model (Deletion)
-
-Deletion from the remote server is **intentionally not automated**. It is gated behind:
-
-1. A successful sync + index
-2. A PASS verification report
-3. A successful secondary backup
-
-**Recommended workflow:**
-1. Run `email-archiver run` until verification passes consistently
-2. Confirm backup exists on secondary storage
-3. Delete from the remote server via the provider's UI (Gmail web, etc.)
-
-## Configuration Reference
-
-See `examples/config.toml` for a fully commented example.
-
-Key sections:
-- `[account.<name>]` — IMAP account details
-- `[paths]` — Maildir root, state/log/verification directories
-- `[mbsync]` — Path to mbsyncrc and sync group name
-- `[notmuch]` — Path to notmuch config
-- `[backup]` — Backup mode and command
-- `[orchestration]` — Whether to run backup after verify
+1. Run `email-archiver run` until verification consistently passes
+2. Confirm backup on secondary storage
+3. Delete from the provider UI (Gmail web, etc.)
 
 ## Development
 
 ```bash
-# Run tests
-pytest
+python -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'
+```
 
-# Run linter
-ruff check src/ tests/
+All tasks use the Makefile:
 
-# Format
-ruff format src/ tests/
+```bash
+make test            # pytest
+make lint            # ruff
+make check           # lint + test
+make build           # build container image
+make test-docker     # container integration tests
+make test-all        # everything
+make help            # full list
 ```
 
 ## License

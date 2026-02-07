@@ -16,12 +16,6 @@ imap_user = "user@example.com"
 
 [paths]
 maildir_root = "/tmp/test-maildir"
-
-[mbsync]
-config_path = "/tmp/test-mbsyncrc"
-
-[notmuch]
-config_path = "/tmp/test-notmuch-config"
 """
 
 FULL_CONFIG = """\
@@ -29,19 +23,14 @@ FULL_CONFIG = """\
 email = "user@example.com"
 imap_host = "imap.example.com"
 imap_user = "user@example.com"
+ssl_type = "STARTTLS"
+folders = ["INBOX", "Archive"]
 
 [paths]
 maildir_root = "/tmp/test-maildir"
 state_dir = "/tmp/test-state"
 logs_dir = "/tmp/test-state/logs"
 verification_dir = "/tmp/test-state/verification"
-
-[mbsync]
-config_path = "/tmp/test-mbsyncrc"
-group = "primary"
-
-[notmuch]
-config_path = "/tmp/test-notmuch-config"
 
 [backup]
 mode = "command"
@@ -98,10 +87,6 @@ class TestLoadConfig:
         p.write_text("""\
 [paths]
 maildir_root = "/tmp/m"
-[mbsync]
-config_path = "/tmp/rc"
-[notmuch]
-config_path = "/tmp/nm"
 """)
         with pytest.raises(ConfigError, match="account"):
             load_config(p)
@@ -113,37 +98,18 @@ config_path = "/tmp/nm"
 email = "a@b.com"
 imap_host = "h"
 imap_user = "u"
-[mbsync]
-config_path = "/tmp/rc"
-[notmuch]
-config_path = "/tmp/nm"
 """)
         with pytest.raises(ConfigError, match="paths"):
-            load_config(p)
-
-    def test_missing_mbsync(self, tmp_path: Path):
-        p = tmp_path / "config.toml"
-        p.write_text("""\
-[account.primary]
-email = "a@b.com"
-imap_host = "h"
-imap_user = "u"
-[paths]
-maildir_root = "/tmp/m"
-[notmuch]
-config_path = "/tmp/nm"
-""")
-        with pytest.raises(ConfigError, match="mbsync"):
             load_config(p)
 
     def test_minimal_config(self, config_file: Path):
         cfg = load_config(config_file)
         assert "primary" in cfg.accounts
         assert cfg.accounts["primary"].email == "user@example.com"
+        assert cfg.accounts["primary"].ssl_type == "IMAPS"  # default
+        assert cfg.accounts["primary"].folders == ["INBOX"]  # default
         assert cfg.paths is not None
         assert cfg.paths.maildir_root == Path("/tmp/test-maildir")
-        assert cfg.mbsync is not None
-        assert cfg.notmuch is not None
         # Defaults
         assert cfg.backup is not None
         assert cfg.orchestration is not None
@@ -151,14 +117,19 @@ config_path = "/tmp/nm"
 
     def test_full_config(self, full_config_file: Path):
         cfg = load_config(full_config_file)
-        assert cfg.mbsync is not None
-        assert cfg.mbsync.group == "primary"
+        assert cfg.accounts["primary"].ssl_type == "STARTTLS"
+        assert cfg.accounts["primary"].folders == ["INBOX", "Archive"]
         assert cfg.backup is not None
         assert cfg.backup.command == "echo backup"
         assert cfg.orchestration is not None
         assert cfg.orchestration.backup_after_verify is False
         assert cfg.paths is not None
         assert cfg.paths.logs_dir == Path("/tmp/test-state/logs")
+
+    def test_generated_config_dir_defaults(self, config_file: Path):
+        cfg = load_config(config_file)
+        assert cfg.paths is not None
+        assert cfg.paths.generated_config_dir == cfg.paths.state_dir / "generated"
 
     def test_account_missing_required_key(self, tmp_path: Path):
         p = tmp_path / "config.toml"
@@ -168,10 +139,6 @@ email = "a@b.com"
 # missing imap_host and imap_user
 [paths]
 maildir_root = "/tmp/m"
-[mbsync]
-config_path = "/tmp/rc"
-[notmuch]
-config_path = "/tmp/nm"
 """)
         with pytest.raises(ConfigError, match="imap_host"):
             load_config(p)

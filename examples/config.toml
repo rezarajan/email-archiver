@@ -1,25 +1,23 @@
 # email-archiver configuration
 # Copy to: ~/.config/email-archiver/config.toml
+#
+# mbsync and notmuch configs are auto-generated from these settings.
+# The IMAP password is read from /run/secrets/imap_password (file mount).
 
 [account.primary]
 email = "user@example.com"
 imap_host = "imap.example.com"
 imap_user = "user@example.com"
-# Password should be retrieved at runtime via mbsync PassCmd (recommended).
-# Gmail note: an App Password is often used when 2FA is enabled.
+ssl_type = "IMAPS"              # IMAPS, STARTTLS, or None
+folders = ["INBOX", "Archive", "Sent"]
+# Gmail note: use ["[Gmail]/All Mail"] to avoid duplicates.
+# An App Password is typically needed when 2FA is enabled.
 
 [paths]
 maildir_root = "~/Mail/imap"
 state_dir = "~/.local/state/email-archiver"
-logs_dir = "~/.local/state/email-archiver/logs"
-verification_dir = "~/.local/state/email-archiver/verification"
-
-[mbsync]
-config_path = "~/.config/isync/mbsyncrc"
-group = "primary"
-
-[notmuch]
-config_path = "~/.notmuch-config"
+# logs_dir and verification_dir default to subdirectories of state_dir.
+# generated_config_dir defaults to state_dir/generated.
 
 [backup]
 # mode can be "command", "restic", "borg", or "rsync"

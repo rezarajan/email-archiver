@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 from pathlib import Path
 
-from email_archiver.config import Config
+from email_archiver.config import PASSWORD_FILE, Config
 
 
 def _check_binary(name: str) -> tuple[bool, str]:
@@ -34,19 +33,6 @@ def _check_dir_exists_or_creatable(path: Path, label: str) -> tuple[bool, str]:
     return False, f"  FAIL  {label} not accessible (parent missing): {path}"
 
 
-def _check_permissions(path: Path, label: str, max_mode: int = 0o600) -> tuple[bool, str]:
-    """Warn if a file has permissions more open than max_mode."""
-    if not path.exists():
-        return True, ""  # skip if file doesn't exist
-    mode = path.stat().st_mode & 0o777
-    if mode <= max_mode:
-        return True, f"  OK  {label} permissions: {stat.filemode(path.stat().st_mode)}"
-    return False, (
-        f"  WARN  {label} permissions too open: "
-        f"{stat.filemode(path.stat().st_mode)} (recommend {oct(max_mode)})"
-    )
-
-
 def run_doctor(config: Config, verbose: bool = False) -> bool:
     """Run all prerequisite checks. Returns True if all critical checks pass."""
     results: list[tuple[bool, str]] = []
@@ -67,26 +53,15 @@ def run_doctor(config: Config, verbose: bool = False) -> bool:
         if not ok:
             all_ok = False
 
-    # 2. Config files
-    print("Checking configuration files...")
-    assert config.mbsync is not None
-    assert config.notmuch is not None
-    ok, msg = _check_file_exists(config.mbsync.config_path, "mbsync config")
+    # 2. Password file
+    print("Checking secrets...")
+    ok, msg = _check_file_exists(PASSWORD_FILE, "password file")
     results.append((ok, msg))
     if not ok:
-        all_ok = False
+        # Warn but don't fail — may not be mounted in doctor-only checks
+        results.append((True, f"  WARN  {PASSWORD_FILE} not found (required at runtime)"))
 
-    ok, msg = _check_file_exists(config.notmuch.config_path, "notmuch config")
-    results.append((ok, msg))
-    if not ok:
-        all_ok = False
-
-    # 3. Check mbsync config permissions
-    ok, msg = _check_permissions(config.mbsync.config_path, "mbsync config")
-    if msg:
-        results.append((ok, msg))
-
-    # 4. Paths
+    # 3. Paths
     print("Checking paths...")
     assert config.paths is not None
     ok, msg = _check_dir_exists_or_creatable(config.paths.maildir_root, "maildir_root")
@@ -98,6 +73,7 @@ def run_doctor(config: Config, verbose: bool = False) -> bool:
         ("state_dir", config.paths.state_dir),
         ("logs_dir", config.paths.logs_dir),
         ("verification_dir", config.paths.verification_dir),
+        ("generated_config_dir", config.paths.generated_config_dir),
     ]:
         ok, msg = _check_dir_exists_or_creatable(path, label)
         results.append((ok, msg))
@@ -122,7 +98,12 @@ def run_doctor(config: Config, verbose: bool = False) -> bool:
 def _ensure_state_dirs(config: Config) -> None:
     """Create state directories if they don't exist."""
     assert config.paths is not None
-    for d in [config.paths.state_dir, config.paths.logs_dir, config.paths.verification_dir]:
+    for d in [
+        config.paths.state_dir,
+        config.paths.logs_dir,
+        config.paths.verification_dir,
+        config.paths.generated_config_dir,
+    ]:
         if not d.is_dir() and d.parent.is_dir():
             try:
                 d.mkdir(parents=True, exist_ok=True)

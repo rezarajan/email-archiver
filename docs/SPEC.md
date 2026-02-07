@@ -48,8 +48,7 @@ Do not sync `INBOX` or label folders under Gmail.
 This repo should provide:
 - An `email-archiver` CLI.
 - Templates/examples:
-  - `mbsync` config
-  - `notmuch` config
+  - `config.toml` (single unified config; mbsync/notmuch configs are auto-generated)
   - `systemd --user` service + timer
 - A verification report format and storage location.
 - Documentation for setup and operations.
@@ -92,11 +91,17 @@ Optional flags (common to multiple commands):
 - `--verbose`
 
 ### 6.2 Configuration file interface
-The project SHOULD use a single config file for orchestration (separate from `mbsync`/`notmuch` configs).
+The project uses a **single** config file. mbsync and notmuch configs are **auto-generated** at runtime from this file — users never maintain separate `mbsyncrc` or `notmuch-config` files.
 
 Recommended format: **TOML** (easy to read, supports nested settings).
 
 Proposed config: `~/.config/email-archiver/config.toml`
+
+#### Password handling
+The IMAP password is provided **exclusively** via a file mounted at `/run/secrets/imap_password`. No environment variables or command-line options are used for secrets. In containers, this is a bind mount or Docker/Podman secret; on bare metal, symlink or write the file directly.
+
+#### Auto-generated configs
+On each run, the tool writes generated `mbsyncrc` and `notmuch-config` files to `<state_dir>/generated/`. The notmuch database is auto-initialized (via `notmuch new`) if it does not yet exist.
 
 Example:
 ```toml
@@ -104,21 +109,14 @@ Example:
 email = "user@example.com"
 imap_host = "imap.example.com"
 imap_user = "user@example.com"
-# Password should be retrieved at runtime via mbsync PassCmd (recommended)
-# Gmail note: an App Password is often used when 2FA is enabled.
+ssl_type = "IMAPS"              # IMAPS, STARTTLS, or None
+folders = ["INBOX", "Archive", "Sent"]
+# Gmail note: use ["[Gmail]/All Mail"] to avoid duplicates.
 
 [paths]
 maildir_root = "~/Mail/imap"
 state_dir = "~/.local/state/email-archiver"
-logs_dir = "~/.local/state/email-archiver/logs"
-verification_dir = "~/.local/state/email-archiver/verification"
-
-[mbsync]
-config_path = "~/.config/isync/mbsyncrc"
-group = "primary"
-
-[notmuch]
-config_path = "~/.notmuch-config"
+# logs_dir, verification_dir, generated_config_dir default to state_dir subdirs
 
 [backup]
 # one of: "restic", "borg", "rsync", "command"
@@ -166,7 +164,8 @@ The service should:
 
 ## 7. Security Requirements
 - Secrets must not be stored in repo.
-- Configs containing sensitive values must be permission-restricted (`0600`).
+- The IMAP password is provided **only** via a file at `/run/secrets/imap_password`.
+- No environment variables or CLI flags are used for password passing.
 - Prefer IMAPS/TLS.
 - Recommend encryption at rest for laptops / removable media.
 

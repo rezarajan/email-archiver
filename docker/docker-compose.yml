@@ -1,6 +1,9 @@
 # For rootless podman, use: podman run --userns=keep-id ...
 # For docker, volumes will use the container's UID 1000
 # See test-compose/ directory for working examples
+#
+# Password is provided exclusively via a file mounted at /run/secrets/imap_password.
+# No environment variable is used for secrets.
 
 services:
   cli:
@@ -11,8 +14,7 @@ services:
       - ${CONFIG_PATH:-./config}:/home/archiver/.config:ro
       - ${DATA_PATH:-./data}:/home/archiver/Mail/imap:rw
       - ${STATE_PATH:-./state}:/home/archiver/.local/state/email-archiver:rw
-    environment:
-      IMAP_PASSWORD: ${IMAP_PASSWORD:?IMAP_PASSWORD must be set}
+      - ${PASSWORD_FILE}:/run/secrets/imap_password:ro
 
   scheduler:
     image: email-archiver:latest
@@ -23,8 +25,8 @@ services:
       - ${CONFIG_PATH:-./config}:/home/archiver/.config:ro
       - ${DATA_PATH:-./data}:/home/archiver/Mail/imap:rw
       - ${STATE_PATH:-./state}:/home/archiver/.local/state/email-archiver:rw
+      - ${PASSWORD_FILE}:/run/secrets/imap_password:ro
     environment:
-      IMAP_PASSWORD: ${IMAP_PASSWORD:?IMAP_PASSWORD must be set}
       SCHEDULE_INTERVAL: ${SCHEDULE_INTERVAL:-3600}
       ARCHIVER_ARGS: ${ARCHIVER_ARGS:-}
     restart: unless-stopped

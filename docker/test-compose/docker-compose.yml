@@ -8,8 +8,7 @@ services:
       - ${CONFIG_PATH:-./config}:/home/archiver/.config:ro,z
       - ${DATA_PATH:-./data}:/home/archiver/Mail/imap:rw,z
       - ${STATE_PATH:-./state}:/home/archiver/.local/state/email-archiver:rw,z
-    environment:
-      IMAP_PASSWORD: ${IMAP_PASSWORD:?IMAP_PASSWORD must be set}
+      - ${PASSWORD_FILE:-./secrets/imap_password}:/run/secrets/imap_password:ro,z
 
   scheduler:
     image: email-archiver:latest
@@ -21,8 +20,8 @@ services:
       - ${CONFIG_PATH:-./config}:/home/archiver/.config:ro,z
       - ${DATA_PATH:-./data}:/home/archiver/Mail/imap:rw,z
       - ${STATE_PATH:-./state}:/home/archiver/.local/state/email-archiver:rw,z
+      - ${PASSWORD_FILE:-./secrets/imap_password}:/run/secrets/imap_password:ro,z
     environment:
-      IMAP_PASSWORD: ${IMAP_PASSWORD:?IMAP_PASSWORD must be set}
       SCHEDULE_INTERVAL: ${SCHEDULE_INTERVAL:-3600}
       ARCHIVER_ARGS: ${ARCHIVER_ARGS:-}
     restart: unless-stopped

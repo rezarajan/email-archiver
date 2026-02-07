@@ -16,12 +16,6 @@ imap_user = "user@example.com"
 
 [paths]
 maildir_root = "/tmp/test-maildir"
-
-[mbsync]
-config_path = "/tmp/test-mbsyncrc"
-
-[notmuch]
-config_path = "/tmp/test-notmuch-config"
 """
 
 

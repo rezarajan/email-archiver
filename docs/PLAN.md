@@ -64,12 +64,19 @@ This plan describes how to build the proposed orchestration tool and supporting 
   - [x] ensure failures short-circuit later steps.
 
 ## 6. Template artifacts
-- [x] Add `examples/mbsyncrc` template:
-  - [x] includes canonical folder selection (All Mail + optional special folders).
-  - [x] includes `PassCmd` example (without embedding a secret).
-- [x] Add `examples/notmuch-config` template.
+- [x] Add `examples/config.toml` (unified config; mbsync/notmuch configs are auto-generated).
 - [x] Add `systemd/email-archiver-run.service` template.
 - [x] Add `systemd/email-archiver-run.timer` template.
+
+## 6b. Config consolidation refactor
+- [x] Move all IMAP/sync/index settings into `[account.*]` sections (`folders`, `ssl_type`).
+- [x] Remove `[mbsync]` and `[notmuch]` config sections.
+- [x] Auto-generate `mbsyncrc` and `notmuch-config` at runtime from `config.toml`.
+- [x] Auto-initialize notmuch database idempotently before first use.
+- [x] Password provided exclusively via file at `/run/secrets/imap_password`.
+- [x] Remove `examples/mbsyncrc` and `examples/notmuch-config`.
+- [x] Update Docker/compose to use secret file mount instead of env var.
+- [x] Update all tests and test fixtures.
 
 ## 7. Documentation and runbooks
 - [x] Update `OVERVIEW.md` if implementation details evolve.

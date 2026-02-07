@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from email_archiver.config import Config
+from email_archiver.generate import write_generated_configs
 from email_archiver.runner import RunResult, run_command
 
 
@@ -34,6 +35,7 @@ def run_sync(
     account: str | None = None,
     verbose: bool = False,
     dry_run: bool = False,
+    mbsyncrc_path: Path | None = None,
 ) -> RunResult:
     """Run mbsync for configured accounts/channels.
 
@@ -42,21 +44,20 @@ def run_sync(
         account: Optional account name filter.
         verbose: Print verbose output.
         dry_run: If True, only print what would be run.
+        mbsyncrc_path: Path to generated mbsyncrc (generated if not provided).
 
     Returns:
         RunResult from mbsync execution.
     """
-    assert config.mbsync is not None
+    if mbsyncrc_path is None:
+        mbsyncrc_path, _ = write_generated_configs(config)
 
-    cmd = ["mbsync", "-c", str(config.mbsync.config_path)]
+    # Determine which group to sync
+    target_account = account or next(iter(config.accounts))
+    cmd = ["mbsync", "-c", str(mbsyncrc_path)]
     if verbose:
         cmd.append("-V")
-
-    # Use the configured group or fall back to -a (all)
-    if config.mbsync.group:
-        cmd.append(config.mbsync.group)
-    else:
-        cmd.append("-a")
+    cmd.append(target_account)
 
     if dry_run:
         print(f"[dry-run] Would execute: {' '.join(cmd)}")

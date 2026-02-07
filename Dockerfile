@@ -20,7 +20,6 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with fixed IDs
-# Permission handling is done via entrypoint fixup (see entrypoint.sh)
 RUN groupadd -g 1000 archiver \
   && useradd -m -u 1000 -g archiver archiver
 

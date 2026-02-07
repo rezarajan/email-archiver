@@ -74,9 +74,33 @@ Verification reports MUST:
 - record timestamp, account, command exit codes, message counts, and oldest/newest coverage
 - fail closed (if checks cannot run, status is FAIL)
 
+## Development commands
+All common tasks are exposed via the root `Makefile`. **Always use these targets** rather than invoking tools directly, and **update the Makefile** when adding new tools, scripts, or important commands.
+
+```bash
+# Python (runs inside .venv)
+make test            # pytest unit tests
+make lint            # ruff linter
+make format-check    # ruff format check (no writes)
+make check           # lint + test (quick pre-commit gate)
+
+# Container (podman)
+make build           # build the email-archiver image
+make test-docker     # all container integration tests
+make test-doctor     # doctor command in container
+
+# Combined
+make test-all        # everything: Python lint + tests + container tests
+make clean           # remove test artifacts and image
+```
+
+Run `make help` for the full list.
+
 ## Contribution guidelines for agents
+- **Run `make check` after every code change** to verify nothing is broken.
 - Keep changes aligned with `PLAN.md`.
 - Prefer small, testable modules (config parsing, subprocess runner, report generation).
-- Never hardcode or commit secrets. Encourage `mbsync` `PassCmd` patterns.
+- Never hardcode or commit secrets. The IMAP password is provided exclusively via `/run/secrets/imap_password`.
 - Maintain idempotency: `sync`, `index`, `verify`, `backup` are safe to re-run.
 - Do not change the Gmail profile dedupe strategy (All Mail only) unless explicitly requested.
+- When adding new tools, scripts, or repeatable commands, **add a Makefile target** and document it here.

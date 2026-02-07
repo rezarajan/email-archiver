@@ -11,6 +11,9 @@ import tomllib
 
 DEFAULT_CONFIG_PATH = "~/.config/email-archiver/config.toml"
 
+# Password is ONLY provided via a file at this fixed path.
+PASSWORD_FILE = Path("/run/secrets/imap_password")
+
 
 class ConfigError(Exception):
     """Raised when configuration is invalid or missing."""
@@ -22,6 +25,8 @@ class AccountConfig:
     email: str
     imap_host: str
     imap_user: str
+    ssl_type: str = "IMAPS"
+    folders: list[str] = field(default_factory=lambda: ["INBOX"])
 
 
 @dataclass
@@ -30,17 +35,11 @@ class PathsConfig:
     state_dir: Path
     logs_dir: Path
     verification_dir: Path
+    generated_config_dir: Path = Path()
 
-
-@dataclass
-class MbsyncConfig:
-    config_path: Path
-    group: str = ""
-
-
-@dataclass
-class NotmuchConfig:
-    config_path: Path
+    def __post_init__(self) -> None:
+        if self.generated_config_dir == Path():
+            self.generated_config_dir = self.state_dir / "generated"
 
 
 @dataclass
@@ -58,8 +57,6 @@ class OrchestrationConfig:
 class Config:
     accounts: dict[str, AccountConfig] = field(default_factory=dict)
     paths: PathsConfig | None = None
-    mbsync: MbsyncConfig | None = None
-    notmuch: NotmuchConfig | None = None
     backup: BackupConfig | None = None
     orchestration: OrchestrationConfig | None = None
 
@@ -87,6 +84,8 @@ def _parse_accounts(raw: dict[str, Any]) -> dict[str, AccountConfig]:
             email=data["email"],
             imap_host=data["imap_host"],
             imap_user=data["imap_user"],
+            ssl_type=data.get("ssl_type", "IMAPS"),
+            folders=data.get("folders", ["INBOX"]),
         )
     return accounts
 
@@ -95,7 +94,7 @@ def _parse_paths(raw: dict[str, Any]) -> PathsConfig:
     _require_keys(raw, ["maildir_root"], "paths")
     maildir_root = expand_path(raw["maildir_root"])
     state_dir = expand_path(raw.get("state_dir", "~/.local/state/email-archiver"))
-    return PathsConfig(
+    paths = PathsConfig(
         maildir_root=maildir_root,
         state_dir=state_dir,
         logs_dir=expand_path(raw.get("logs_dir", str(state_dir / "logs"))),
@@ -103,19 +102,9 @@ def _parse_paths(raw: dict[str, Any]) -> PathsConfig:
             raw.get("verification_dir", str(state_dir / "verification"))
         ),
     )
-
-
-def _parse_mbsync(raw: dict[str, Any]) -> MbsyncConfig:
-    _require_keys(raw, ["config_path"], "mbsync")
-    return MbsyncConfig(
-        config_path=expand_path(raw["config_path"]),
-        group=raw.get("group", ""),
-    )
-
-
-def _parse_notmuch(raw: dict[str, Any]) -> NotmuchConfig:
-    _require_keys(raw, ["config_path"], "notmuch")
-    return NotmuchConfig(config_path=expand_path(raw["config_path"]))
+    if "generated_config_dir" in raw:
+        paths.generated_config_dir = expand_path(raw["generated_config_dir"])
+    return paths
 
 
 def _parse_backup(raw: dict[str, Any]) -> BackupConfig:
@@ -133,6 +122,9 @@ def _parse_orchestration(raw: dict[str, Any]) -> OrchestrationConfig:
 
 def load_config(path: str | Path | None = None) -> Config:
     """Load and validate the email-archiver configuration file.
+
+    All IMAP/sync/index settings are derived from [account.*] sections.
+    mbsync and notmuch configs are auto-generated at runtime.
 
     Args:
         path: Path to config file. Defaults to ~/.config/email-archiver/config.toml.
@@ -165,16 +157,6 @@ def load_config(path: str | Path | None = None) -> Config:
     if "paths" not in raw:
         raise ConfigError("[paths] section is required")
     config.paths = _parse_paths(raw["paths"])
-
-    if "mbsync" in raw:
-        config.mbsync = _parse_mbsync(raw["mbsync"])
-    else:
-        raise ConfigError("[mbsync] section is required")
-
-    if "notmuch" in raw:
-        config.notmuch = _parse_notmuch(raw["notmuch"])
-    else:
-        raise ConfigError("[notmuch] section is required")
 
     if "backup" in raw:
         config.backup = _parse_backup(raw["backup"])

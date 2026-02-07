@@ -7,16 +7,14 @@ This directory contains a minimal working configuration for testing email-archiv
 ```
 test-compose/
 ├── config/
-│   ├── email-archiver/
-│   │   └── config.toml          # App configuration
-│   ├── isync/
-│   │   └── mbsyncrc             # mbsync configuration
-│   └── notmuch-config           # notmuch configuration
+│   └── email-archiver/
+│       └── config.toml          # Single unified config (mbsync/notmuch auto-generated)
+├── secrets/
+│   └── imap_password            # IMAP password file (mounted at /run/secrets/imap_password)
 ├── data/                        # Maildir storage (mounted read-write)
-├── state/                       # State/logs/verification (mounted read-write)
+├── state/                       # State/logs/verification/generated configs (mounted read-write)
 ├── .env                         # Environment variables
 └── docker-compose.yml           # Compose configuration
-
 ```
 
 ## Quick Start
@@ -56,23 +54,13 @@ All configuration is in `.env`:
 - `CONFIG_PATH` - Path to config directory (default: `./config`)
 - `DATA_PATH` - Path to mail data (default: `./data`)
 - `STATE_PATH` - Path to state/logs (default: `./state`)
-- `IMAP_PASSWORD` - IMAP password (default: `test-password-12345`)
-- `PUID/PGID` - User/group ID for file ownership (default: `1000`)
+- `PASSWORD_FILE` - Path to IMAP password file (default: `./secrets/imap_password`)
 - `SCHEDULE_INTERVAL` - Seconds between runs (default: `3600`)
-
-## Testing Permissions
-
-```bash
-# Test write access
-docker compose run --rm cli --entrypoint /bin/sh -c "touch /home/archiver/Mail/imap/test && rm /home/archiver/Mail/imap/test && echo OK"
-
-# Test config read
-docker compose run --rm cli --entrypoint /bin/sh -c "cat /home/archiver/.config/email-archiver/config.toml | head -3"
-```
 
 ## Notes
 
-- The image runs as UID/GID 1000 by default (configurable via `PUID/PGID`)
+- Only `config.toml` is needed — mbsync and notmuch configs are auto-generated
+- Password is provided via a file mount at `/run/secrets/imap_password` (never via env vars)
+- The image runs as UID/GID 1000 by default
 - Config is mounted read-only, data and state are read-write
-- All paths are externalized via environment variables
-- This setup works identically in Kubernetes with ConfigMaps and PersistentVolumeClaims
+- This setup works identically in Kubernetes with ConfigMaps, PVCs, and Secrets

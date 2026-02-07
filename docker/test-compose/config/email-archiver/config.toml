@@ -2,19 +2,12 @@
 email = "test@example.com"
 imap_host = "imap.example.com"
 imap_user = "test@example.com"
+ssl_type = "IMAPS"
+folders = ["INBOX"]
 
 [paths]
 maildir_root = "/home/archiver/Mail/imap"
 state_dir = "/home/archiver/.local/state/email-archiver"
-logs_dir = "/home/archiver/.local/state/email-archiver/logs"
-verification_dir = "/home/archiver/.local/state/email-archiver/verification"
-
-[mbsync]
-config_path = "/home/archiver/.config/isync/mbsyncrc"
-group = "primary"
-
-[notmuch]
-config_path = "/home/archiver/.config/notmuch-config"
 
 [backup]
 mode = "command"

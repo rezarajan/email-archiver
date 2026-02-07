@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from email_archiver.config import Config
+from email_archiver.generate import ensure_notmuch_init, write_generated_configs
 from email_archiver.runner import RunResult, run_command
 
 
@@ -13,6 +15,7 @@ def run_index(
     *,
     verbose: bool = False,
     dry_run: bool = False,
+    notmuch_config_path: Path | None = None,
 ) -> RunResult:
     """Run notmuch new to index the local Maildir.
 
@@ -20,13 +23,15 @@ def run_index(
         config: Validated configuration.
         verbose: Print verbose output.
         dry_run: If True, only print what would be run.
+        notmuch_config_path: Path to generated notmuch config (generated if not provided).
 
     Returns:
         RunResult from notmuch execution.
     """
-    assert config.notmuch is not None
+    if notmuch_config_path is None:
+        _, notmuch_config_path = write_generated_configs(config)
 
-    env = {**os.environ, "NOTMUCH_CONFIG": str(config.notmuch.config_path)}
+    env = {**os.environ, "NOTMUCH_CONFIG": str(notmuch_config_path)}
     cmd = ["notmuch", "new"]
 
     if dry_run:
@@ -34,6 +39,9 @@ def run_index(
         return RunResult(
             command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0
         )
+
+    # Auto-initialize notmuch database if needed
+    ensure_notmuch_init(config, notmuch_config_path)
 
     print(f"Running: {' '.join(cmd)}")
     result = run_command(cmd, env=env, stream=verbose)

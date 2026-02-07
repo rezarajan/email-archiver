@@ -17,8 +17,6 @@ from email_archiver.config import (
     AccountConfig,
     BackupConfig,
     Config,
-    MbsyncConfig,
-    NotmuchConfig,
     OrchestrationConfig,
     PathsConfig,
 )
@@ -35,8 +33,6 @@ def mock_config(tmp_path: Path) -> Config:
             logs_dir=tmp_path / "state" / "logs",
             verification_dir=tmp_path / "state" / "verification",
         ),
-        mbsync=MbsyncConfig(config_path=tmp_path / "mbsyncrc", group="test"),
-        notmuch=NotmuchConfig(config_path=tmp_path / "notmuch-config"),
         backup=BackupConfig(),
         orchestration=OrchestrationConfig(),
     )
@@ -83,8 +79,7 @@ class TestWriteReport:
         report = {
             "timestamp": "2024-01-01T00:00:00+00:00",
             "account": "test",
-            "mbsync": {"config_path": "/tmp/rc", "group": "test"},
-            "notmuch": {"config_path": "/tmp/nm", "total_message_count": 100},
+            "notmuch": {"total_message_count": 100},
             "coverage": {"oldest_message": "2020-01-01", "newest_message": "2024-01-01"},
             "status": "PASS",
         }
