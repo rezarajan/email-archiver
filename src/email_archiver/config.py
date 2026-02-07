@@ -25,7 +25,7 @@ class AccountConfig:
     email: str
     imap_host: str
     imap_user: str
-    ssl_type: str = "IMAPS"
+    tls_type: str = "IMAPS"
     folders: list[str] = field(default_factory=lambda: ["INBOX"])
 
 
@@ -84,7 +84,7 @@ def _parse_accounts(raw: dict[str, Any]) -> dict[str, AccountConfig]:
             email=data["email"],
             imap_host=data["imap_host"],
             imap_user=data["imap_user"],
-            ssl_type=data.get("ssl_type", "IMAPS"),
+            tls_type=data.get("tls_type", "IMAPS"),
             folders=data.get("folders", ["INBOX"]),
         )
     return accounts
@@ -98,9 +98,7 @@ def _parse_paths(raw: dict[str, Any]) -> PathsConfig:
         maildir_root=maildir_root,
         state_dir=state_dir,
         logs_dir=expand_path(raw.get("logs_dir", str(state_dir / "logs"))),
-        verification_dir=expand_path(
-            raw.get("verification_dir", str(state_dir / "verification"))
-        ),
+        verification_dir=expand_path(raw.get("verification_dir", str(state_dir / "verification"))),
     )
     if "generated_config_dir" in raw:
         paths.generated_config_dir = expand_path(raw["generated_config_dir"])

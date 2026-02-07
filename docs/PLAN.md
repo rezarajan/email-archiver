@@ -69,7 +69,7 @@ This plan describes how to build the proposed orchestration tool and supporting 
 - [x] Add `systemd/email-archiver-run.timer` template.
 
 ## 6b. Config consolidation refactor
-- [x] Move all IMAP/sync/index settings into `[account.*]` sections (`folders`, `ssl_type`).
+- [x] Move all IMAP/sync/index settings into `[account.*]` sections (`folders`, `tls_type`).
 - [x] Remove `[mbsync]` and `[notmuch]` config sections.
 - [x] Auto-generate `mbsyncrc` and `notmuch-config` at runtime from `config.toml`.
 - [x] Auto-initialize notmuch database idempotently before first use.

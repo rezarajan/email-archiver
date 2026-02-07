@@ -2,7 +2,7 @@
 email = "test@example.com"
 imap_host = "imap.example.com"
 imap_user = "test@example.com"
-ssl_type = "IMAPS"
+tls_type = "IMAPS"
 folders = ["INBOX"]
 
 [paths]

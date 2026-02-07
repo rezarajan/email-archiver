@@ -109,7 +109,7 @@ Example:
 email = "user@example.com"
 imap_host = "imap.example.com"
 imap_user = "user@example.com"
-ssl_type = "IMAPS"              # IMAPS, STARTTLS, or None
+tls_type = "IMAPS"              # IMAPS, STARTTLS, or None
 folders = ["INBOX", "Archive", "Sent"]
 # Gmail note: use ["[Gmail]/All Mail"] to avoid duplicates.
 

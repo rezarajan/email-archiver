@@ -22,7 +22,7 @@ Edit `~/.config/email-archiver/config.toml`:
 email = "you@example.com"
 imap_host = "imap.example.com"
 imap_user = "you@example.com"
-ssl_type = "IMAPS"
+tls_type = "IMAPS"
 folders = ["INBOX", "Archive", "Sent"]
 # Gmail: use folders = ["[Gmail]/All Mail"] to avoid duplicates
 
@@ -173,7 +173,7 @@ Everything is in a single `config.toml`. See [`examples/config.toml`](examples/c
 email = "you@example.com"
 imap_host = "imap.example.com"
 imap_user = "you@example.com"
-ssl_type = "IMAPS"                     # IMAPS, STARTTLS, or None
+tls_type = "IMAPS"                     # IMAPS, STARTTLS, or None
 folders = ["INBOX", "Archive", "Sent"]  # which IMAP folders to sync
 
 [paths]

@@ -23,7 +23,7 @@ FULL_CONFIG = """\
 email = "user@example.com"
 imap_host = "imap.example.com"
 imap_user = "user@example.com"
-ssl_type = "STARTTLS"
+tls_type = "STARTTLS"
 folders = ["INBOX", "Archive"]
 
 [paths]
@@ -106,7 +106,7 @@ imap_user = "u"
         cfg = load_config(config_file)
         assert "primary" in cfg.accounts
         assert cfg.accounts["primary"].email == "user@example.com"
-        assert cfg.accounts["primary"].ssl_type == "IMAPS"  # default
+        assert cfg.accounts["primary"].tls_type == "IMAPS"  # default
         assert cfg.accounts["primary"].folders == ["INBOX"]  # default
         assert cfg.paths is not None
         assert cfg.paths.maildir_root == Path("/tmp/test-maildir")
@@ -117,7 +117,7 @@ imap_user = "u"
 
     def test_full_config(self, full_config_file: Path):
         cfg = load_config(full_config_file)
-        assert cfg.accounts["primary"].ssl_type == "STARTTLS"
+        assert cfg.accounts["primary"].tls_type == "STARTTLS"
         assert cfg.accounts["primary"].folders == ["INBOX", "Archive"]
         assert cfg.backup is not None
         assert cfg.backup.command == "echo backup"

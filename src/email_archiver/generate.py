@@ -32,7 +32,7 @@ def generate_mbsyncrc(config: Config) -> str:
         lines.append(f"Host {acct.imap_host}")
         lines.append(f"User {acct.imap_user}")
         lines.append(f'PassCmd "cat {PASSWORD_FILE}"')
-        lines.append(f"SSLType {acct.ssl_type}")
+        lines.append(f"TLSType {acct.tls_type}")
         lines.append("CertificateFile /etc/ssl/certs/ca-certificates.crt")
         lines.append("")
 

@@ -31,7 +31,7 @@ def config(tmp_path: Path) -> Config:
                 email="user@example.com",
                 imap_host="imap.example.com",
                 imap_user="user@example.com",
-                ssl_type="IMAPS",
+                tls_type="IMAPS",
                 folders=["INBOX", "Archive"],
             ),
         },
@@ -64,7 +64,7 @@ class TestGenerateMbsyncrc:
         assert "Host imap.example.com" in rc
         assert "User user@example.com" in rc
         assert f'PassCmd "cat {PASSWORD_FILE}"' in rc
-        assert "SSLType IMAPS" in rc
+        assert "TLSType IMAPS" in rc
 
     def test_contains_stores(self, config: Config):
         rc = generate_mbsyncrc(config)
