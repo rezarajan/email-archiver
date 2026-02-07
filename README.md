@@ -33,8 +33,7 @@ You can run email-archiver without installing anything locally (besides Docker/P
 ### Build the image
 
 ```bash
-# Match your host UID/GID so bind-mounted files keep correct ownership
-docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t email-archiver .
+docker build -t email-archiver .
 ```
 
 ### Prepare host config and data directories

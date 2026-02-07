@@ -19,12 +19,10 @@ RUN apt-get update \
     rsync \
   && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user whose UID/GID can be overridden at build time
-# so that bind-mounted files keep the host user's ownership.
-ARG UID=1000
-ARG GID=1000
-RUN groupadd -g "${GID}" archiver \
-  && useradd -m -u "${UID}" -g archiver archiver
+# Create a non-root user with fixed IDs
+# Permission handling is done via entrypoint fixup (see entrypoint.sh)
+RUN groupadd -g 1000 archiver \
+  && useradd -m -u 1000 -g archiver archiver
 
 COPY . /opt/email-archiver
 RUN pip install --no-cache-dir /opt/email-archiver \
@@ -32,6 +30,7 @@ RUN pip install --no-cache-dir /opt/email-archiver \
   && chmod +x /usr/local/bin/scheduler \
   && rm -rf /opt/email-archiver
 
+# Run as non-root user
 USER archiver
 WORKDIR /home/archiver
 

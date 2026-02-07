@@ -1,0 +1,16 @@
+[database]
+path=/home/archiver/Mail/imap
+
+[user]
+name=Test User
+primary_email=test@example.com
+
+[new]
+tags=unread;inbox;
+ignore=.mbsyncstate;.uidvalidity
+
+[search]
+exclude_tags=deleted;spam;
+
+[maildir]
+synchronize_flags=true
