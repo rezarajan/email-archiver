@@ -30,7 +30,10 @@ def run_all(
     print("Step 1/3: Sync")
     print("=" * 60)
     sync_result = run_sync(
-        config, account=account, verbose=verbose, dry_run=dry_run,
+        config,
+        account=account,
+        verbose=verbose,
+        dry_run=dry_run,
         mbsyncrc_path=mbsyncrc_path,
     )
     if not sync_result.ok:
@@ -43,7 +46,9 @@ def run_all(
     print("Step 2/3: Index")
     print("=" * 60)
     index_result = run_index(
-        config, verbose=verbose, dry_run=dry_run,
+        config,
+        verbose=verbose,
+        dry_run=dry_run,
         notmuch_config_path=notmuch_config_path,
     )
     if not index_result.ok:
@@ -56,7 +61,9 @@ def run_all(
     print("Step 3/3: Verify")
     print("=" * 60)
     report = run_verify(
-        config, account=account, verbose=verbose,
+        config,
+        account=account,
+        verbose=verbose,
         notmuch_config_path=notmuch_config_path,
     )
     if report["status"] != "PASS":

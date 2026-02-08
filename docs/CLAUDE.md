@@ -36,12 +36,21 @@ Current contents:
 - Backup runs only after verification succeeds
 - Destructive deletion remains gated and intentionally high-friction
 
-## Build / test commands (expected once scaffolding is added)
-These are the intended repo-local commands once Python packaging and tests land:
-- (Optional) Build the base environment image locally:
-  - `podman build --platform linux/amd64 -f Dockerfile.warp-env -t email-archiver-env:latest .`
-- Create venv + install in editable mode: `python -m venv .venv && . .venv/bin/activate && pip install -e '.[dev]'`
-- Run tests: `pytest`
-- Run formatting/linting (if added): `ruff check .` / `ruff format .`
+## Build / test commands
 
-If the repo doesn’t include these yet, add them as part of `PLAN.md` step 1 (scaffolding).
+All tasks are exposed via the root Makefile:
+
+```bash
+# Python checks (runs inside .venv)
+make check           # lint + format-check + test (run this before every commit)
+make test            # pytest unit tests only
+make lint            # ruff linter only
+make format-check    # ruff format check only
+
+# Container
+make build           # build the email-archiver image
+make test-docker     # container smoke tests
+make test-all        # everything: Python + container
+```
+
+**IMPORTANT**: Always run `make check` after making code changes. This runs lint, format-check, and all 52 unit tests. The CI pipeline runs the same checks on every push.

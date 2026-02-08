@@ -82,9 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "sync":
         from email_archiver.commands.sync import run_sync
 
-        result = run_sync(
-            config, account=args.account, verbose=args.verbose, dry_run=args.dry_run
-        )
+        result = run_sync(config, account=args.account, verbose=args.verbose, dry_run=args.dry_run)
         return 0 if result.ok else result.exit_code
 
     elif args.command == "index":
@@ -108,9 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "run":
         from email_archiver.commands.run import run_all
 
-        return run_all(
-            config, account=args.account, verbose=args.verbose, dry_run=args.dry_run
-        )
+        return run_all(config, account=args.account, verbose=args.verbose, dry_run=args.dry_run)
 
     else:
         parser.print_help()

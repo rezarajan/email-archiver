@@ -38,8 +38,8 @@ lint:
 format-check:
 	$(RUFF) format --check src/ tests/
 
-## Lint + tests (quick pre-commit check)
-check: lint test
+## Lint + format-check + tests (quick pre-commit check)
+check: lint format-check test
 
 # ==========================================================================
 #  Container targets

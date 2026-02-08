@@ -42,8 +42,12 @@ class TestBuildReport:
     def test_pass_when_all_checks_ok(self, mock_config: Config):
         count_result = RunResult(["notmuch", "count"], 0, "42\n", "", 0.1)
         report = _build_report(
-            mock_config, "test", count_result, 42,
-            "2020-01-01T00:00:00+00:00", "2024-12-31T00:00:00+00:00",
+            mock_config,
+            "test",
+            count_result,
+            42,
+            "2020-01-01T00:00:00+00:00",
+            "2024-12-31T00:00:00+00:00",
         )
         assert report["status"] == STATUS_PASS
         assert report["notmuch"]["total_message_count"] == 42
@@ -62,7 +66,11 @@ class TestBuildReport:
     def test_fail_when_missing_dates(self, mock_config: Config):
         count_result = RunResult(["notmuch", "count"], 0, "10\n", "", 0.1)
         report = _build_report(
-            mock_config, "test", count_result, 10, None,
+            mock_config,
+            "test",
+            count_result,
+            10,
+            None,
             "2024-01-01T00:00:00+00:00",
         )
         assert report["status"] == STATUS_FAIL

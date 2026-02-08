@@ -40,9 +40,7 @@ def run_backup(
 
     if dry_run:
         print(f"[dry-run] Would execute: {' '.join(cmd)}")
-        return RunResult(
-            command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0
-        )
+        return RunResult(command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0)
 
     print(f"Running backup: {' '.join(cmd)}")
     result = run_command(cmd, stream=verbose)

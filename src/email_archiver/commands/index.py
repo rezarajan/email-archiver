@@ -36,9 +36,7 @@ def run_index(
 
     if dry_run:
         print(f"[dry-run] Would execute: {' '.join(cmd)}")
-        return RunResult(
-            command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0
-        )
+        return RunResult(command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0)
 
     # Auto-initialize notmuch database if needed
     ensure_notmuch_init(config, notmuch_config_path)
