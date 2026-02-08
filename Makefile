@@ -58,7 +58,7 @@ test-write: build
 	podman run --rm \
 		--userns=keep-id \
 		-v $(DATA):/home/archiver/Mail/imap:rw,z \
-		--entrypoint /bin/bash \
+		--entrypoint /bin/sh \
 		$(IMAGE) \
 		-c "touch /home/archiver/Mail/imap/test && rm /home/archiver/Mail/imap/test && echo 'Write test: OK'"
 
@@ -67,7 +67,7 @@ test-config: build
 	podman run --rm \
 		--userns=keep-id \
 		-v $(CONFIG):/home/archiver/.config:ro,z \
-		--entrypoint /bin/bash \
+		--entrypoint /bin/sh \
 		$(IMAGE) \
 		-c "cat /home/archiver/.config/email-archiver/config.toml | head -3"
 
