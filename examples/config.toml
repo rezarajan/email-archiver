@@ -13,6 +13,15 @@ folders = ["INBOX", "Archive", "Sent"]
 # Gmail note: use ["[Gmail]/All Mail"] to avoid duplicates.
 # An App Password is typically needed when 2FA is enabled.
 
+# Sync mode: "no-expunge" (default), "pull-new", or "full"
+# - "no-expunge": Sync all changes (new messages, moves, flag updates) but never delete
+#                  messages locally. Prevents data loss while tracking moves.
+# - "pull-new": Only pull new messages and flag changes from server. No deletions or
+#               uploads. Pure archive mode.
+# - "full": Full bidirectional sync. Propagates ALL changes including deletions.
+#           Use with caution - can result in data loss.
+sync_mode = "no-expunge"
+
 [paths]
 maildir_root = "~/Mail/imap"
 state_dir = "~/.local/state/email-archiver"

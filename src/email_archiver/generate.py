@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from email_archiver.config import PASSWORD_FILE, Config
+from email_archiver.config import PASSWORD_FILE, Config, SyncMode
 from email_archiver.runner import run_command
 
 
@@ -58,7 +58,23 @@ def generate_mbsyncrc(config: Config) -> str:
             lines.append(f'Far :{acct_name}-remote:"{folder}"')
             lines.append(f"Near :{acct_name}-local:{_sanitize_name(folder)}")
             lines.append("Create Near")
-            lines.append("Expunge None")
+
+            # Configure sync behavior based on sync_mode
+            if acct.sync_mode == SyncMode.FULL:
+                # Full bidirectional sync (propagates all changes including deletes)
+                lines.append("Expunge Both")
+                lines.append("Sync All")
+            elif acct.sync_mode == SyncMode.NO_EXPUNGE:
+                # Sync all changes but never physically delete messages
+                # This tracks moves and flag changes while preserving deleted messages locally
+                lines.append("Expunge None")
+                lines.append("Sync All")
+            elif acct.sync_mode == SyncMode.PULL_NEW:
+                # Only pull new messages and flag changes from server
+                # No deletions, no uploads - archive mode
+                lines.append("Expunge None")
+                lines.append("Sync Pull New Flags")
+
             lines.append("SyncState *")
             lines.append("")
 

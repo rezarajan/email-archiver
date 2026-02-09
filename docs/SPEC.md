@@ -111,6 +111,7 @@ imap_host = "imap.example.com"
 imap_user = "user@example.com"
 tls_type = "IMAPS"              # IMAPS, STARTTLS, or None
 folders = ["INBOX", "Archive", "Sent"]
+sync_mode = "no-expunge"       # no-expunge (default), pull-new, or full
 # Gmail note: use ["[Gmail]/All Mail"] to avoid duplicates.
 
 [paths]

@@ -175,6 +175,7 @@ imap_host = "imap.example.com"
 imap_user = "you@example.com"
 tls_type = "IMAPS"                     # IMAPS, STARTTLS, or None
 folders = ["INBOX", "Archive", "Sent"]  # which IMAP folders to sync
+sync_mode = "no-expunge"               # no-expunge (default), pull-new, or full
 
 [paths]
 maildir_root = "~/Mail/imap"
@@ -192,6 +193,18 @@ progress_backend = "stdout"  # or "file" or "prom"
 **What gets auto-generated:** mbsync config, notmuch config, and the notmuch database (on first run). These are written to `<state_dir>/generated/`.
 
 **Password:** Always read from `/run/secrets/imap_password`. In containers this is a bind mount; on bare metal, write or symlink the file.
+
+### Sync Modes
+
+Control how messages are synchronized to prevent data loss:
+
+- **`no-expunge`** (default, recommended): Syncs all changes (new messages, moves, flag updates) but **never deletes messages locally**. When a message is deleted on the server, it's marked as deleted locally but the file is preserved. Moves between folders (e.g., INBOX → Archive) are tracked correctly, preventing duplicates.
+
+- **`pull-new`**: Archive mode. Only pulls new messages and flag changes from the server. No deletions or uploads. Use for one-way backup/archive scenarios.
+
+- **`full`**: Full bidirectional sync. Propagates ALL changes including deletions. **Use with caution** - deleted messages are permanently removed locally.
+
+**Why `no-expunge` is recommended:** It prevents accidental data loss while still tracking message moves correctly. If you move a message from INBOX to Archive on the server, the local copy is updated to reflect the move (avoiding duplicates), but if you delete it on the server, the local file is preserved.
 
 ### Progress Reporting
 

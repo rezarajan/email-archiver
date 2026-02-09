@@ -20,6 +20,19 @@ class ConfigError(Exception):
     """Raised when configuration is invalid or missing."""
 
 
+class SyncMode(str, Enum):
+    """Sync mode for mbsync operations.
+
+    Controls how messages are synchronized and whether deletions are propagated.
+    """
+
+    FULL = "full"  # Full bidirectional sync (default, propagates all changes including deletes)
+    NO_EXPUNGE = "no-expunge"  # Sync changes but never delete messages (prevents data loss)
+    PULL_NEW = (
+        "pull-new"  # Only pull new messages from server, track moves, no deletions or uploads
+    )
+
+
 @dataclass
 class AccountConfig:
     name: str
@@ -28,6 +41,7 @@ class AccountConfig:
     imap_user: str
     tls_type: str = "IMAPS"
     folders: list[str] = field(default_factory=lambda: ["INBOX"])
+    sync_mode: SyncMode = SyncMode.NO_EXPUNGE
 
 
 @dataclass
@@ -90,6 +104,17 @@ def _parse_accounts(raw: dict[str, Any]) -> dict[str, AccountConfig]:
         if not isinstance(data, dict):
             raise ConfigError(f"Account '{name}' must be a table")
         _require_keys(data, ["email", "imap_host", "imap_user"], f"account.{name}")
+
+        # Parse sync_mode
+        sync_mode_str = data.get("sync_mode", "no-expunge")
+        try:
+            sync_mode = SyncMode(sync_mode_str)
+        except ValueError:
+            valid = ", ".join([m.value for m in SyncMode])
+            raise ConfigError(
+                f"Invalid sync_mode '{sync_mode_str}' in account.{name}. Valid options: {valid}"
+            )
+
         accounts[name] = AccountConfig(
             name=name,
             email=data["email"],
@@ -97,6 +122,7 @@ def _parse_accounts(raw: dict[str, Any]) -> dict[str, AccountConfig]:
             imap_user=data["imap_user"],
             tls_type=data.get("tls_type", "IMAPS"),
             folders=data.get("folders", ["INBOX"]),
+            sync_mode=sync_mode,
         )
     return accounts
 
