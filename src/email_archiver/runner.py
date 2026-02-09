@@ -5,6 +5,9 @@ from __future__ import annotations
 import subprocess
 import time
 from dataclasses import dataclass
+from typing import Callable
+
+from email_archiver.progress import ProgressReporter
 
 
 @dataclass
@@ -33,6 +36,8 @@ def run_command(
     cwd: str | None = None,
     timeout: float | None = None,
     stream: bool = False,
+    progress_reporter: ProgressReporter | None = None,
+    line_parser: Callable[[str], None] | None = None,
 ) -> RunResult:
     """Run an external command and capture its output.
 
@@ -42,6 +47,8 @@ def run_command(
         cwd: Optional working directory.
         timeout: Optional timeout in seconds.
         stream: If True, also print output to stdout/stderr in real time.
+        progress_reporter: Optional progress reporter for emitting events.
+        line_parser: Optional callback to parse each output line (for progress tracking).
 
     Returns:
         A RunResult with captured output and timing.
@@ -66,8 +73,11 @@ def run_command(
             assert proc.stdout is not None
             assert proc.stderr is not None
             for line in proc.stdout:
-                print(line, end="")
+                if not progress_reporter:  # Only print if no progress reporter
+                    print(line, end="")
                 stdout_parts.append(line)
+                if line_parser:
+                    line_parser(line.rstrip())
             # Collect remaining stderr
             stderr_data = proc.stderr.read()
             if stderr_data:

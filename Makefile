@@ -1,5 +1,5 @@
 .PHONY: build test test-docker test-doctor test-write test-config test-version \
-	test-help test-all lint check clean help
+	test-help test-all lint format format-check check clean help
 
 # -- Python / venv ---------------------------------------------------------
 VENV := .venv
@@ -34,12 +34,16 @@ test:
 lint:
 	$(RUFF) check src/ tests/
 
+## Auto-format code with ruff
+format:
+	$(RUFF) format src/ tests/
+
 ## Run ruff formatter check (no changes)
 format-check:
 	$(RUFF) format --check src/ tests/
 
-## Lint + format-check + tests (quick pre-commit check)
-check: lint format-check test
+## Format + lint + tests (quick pre-commit check)
+check: format lint test
 
 # ==========================================================================
 #  Container targets
@@ -102,8 +106,9 @@ help:
 	@echo "  Python:"
 	@echo "    test           - Run pytest unit tests"
 	@echo "    lint           - Run ruff linter"
+	@echo "    format         - Auto-format code with ruff"
 	@echo "    format-check   - Check ruff formatting (no changes)"
-	@echo "    check          - lint + test"
+	@echo "    check          - format + lint + test"
 	@echo ""
 	@echo "  Container:"
 	@echo "    build          - Build the email-archiver image"

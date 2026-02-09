@@ -5,9 +5,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from email_archiver.config import Config
+from email_archiver.config import Config, ProgressBackend
 from email_archiver.generate import ensure_notmuch_init, write_generated_configs
+from email_archiver.parsers import NotmuchParser
+from email_archiver.progress import ProgressCallback, ProgressPhase, ProgressReporter
 from email_archiver.runner import RunResult, run_command
+from email_archiver.terminal_ui import (
+    FileProgressCallback,
+    PrometheusProgressCallback,
+    TerminalProgressUI,
+)
 
 
 def run_index(
@@ -41,14 +48,58 @@ def run_index(
     # Auto-initialize notmuch database if needed
     ensure_notmuch_init(config, notmuch_config_path)
 
-    print(f"Running: {' '.join(cmd)}")
-    result = run_command(cmd, env=env, stream=verbose)
+    # Set up progress reporting
+    reporter = ProgressReporter()
+    assert config.orchestration is not None
+    backend = config.orchestration.progress_backend
+
+    # Create appropriate progress callback based on config
+    callback: ProgressCallback
+    if backend == ProgressBackend.FILE:
+        assert config.orchestration.progress_file is not None
+        callback = FileProgressCallback(config.orchestration.progress_file)
+    elif backend == ProgressBackend.PROM:
+        callback = PrometheusProgressCallback()
+    else:  # STDOUT (default)
+        callback = TerminalProgressUI(enabled=verbose)
+
+    reporter.subscribe(callback)
+
+    # Report start
+    reporter.report(ProgressPhase.STARTING, "Starting indexing")
+
+    # Parse notmuch output for progress tracking
+    parser = NotmuchParser(reporter)
+
+    # Use context manager only for TerminalProgressUI
+    if isinstance(callback, TerminalProgressUI):
+        with callback.activate():
+            result = run_command(
+                cmd,
+                env=env,
+                stream=verbose,
+                progress_reporter=reporter,
+                line_parser=parser.parse_line,
+            )
+    else:
+        result = run_command(
+            cmd,
+            env=env,
+            stream=verbose,
+            progress_reporter=reporter,
+            line_parser=parser.parse_line,
+        )
+        # Close file callback if needed
+        if isinstance(callback, FileProgressCallback):
+            callback.close()
 
     if result.ok:
-        print(f"Index completed successfully ({result.duration_seconds:.1f}s)")
-        if result.stdout.strip():
-            print(f"  {result.stdout.strip()}")
+        if not verbose:  # Only print summary if not showing progress
+            print(f"Index completed successfully ({result.duration_seconds:.1f}s)")
+            if result.stdout.strip():
+                print(f"  {result.stdout.strip()}")
     else:
+        reporter.report(ProgressPhase.FAILED, f"Index failed (exit {result.exit_code})")
         print(f"Index failed (exit {result.exit_code})")
         if result.stderr:
             print(f"stderr: {result.stderr[:500]}")

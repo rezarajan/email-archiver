@@ -5,9 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from email_archiver.config import Config
+from email_archiver.config import Config, ProgressBackend
 from email_archiver.generate import write_generated_configs
+from email_archiver.parsers import MbsyncParser
+from email_archiver.progress import ProgressCallback, ProgressPhase, ProgressReporter
 from email_archiver.runner import RunResult, run_command
+from email_archiver.terminal_ui import (
+    FileProgressCallback,
+    PrometheusProgressCallback,
+    TerminalProgressUI,
+)
 
 
 def _write_log(config: Config, result: RunResult, account: str) -> Path:
@@ -63,8 +70,50 @@ def run_sync(
         print(f"[dry-run] Would execute: {' '.join(cmd)}")
         return RunResult(command=cmd, exit_code=0, stdout="", stderr="", duration_seconds=0.0)
 
-    print(f"Running: {' '.join(cmd)}")
-    result = run_command(cmd, stream=verbose)
+    # Set up progress reporting
+    reporter = ProgressReporter()
+    assert config.orchestration is not None
+    backend = config.orchestration.progress_backend
+
+    # Create appropriate progress callback based on config
+    callback: ProgressCallback
+    if backend == ProgressBackend.FILE:
+        assert config.orchestration.progress_file is not None
+        callback = FileProgressCallback(config.orchestration.progress_file)
+    elif backend == ProgressBackend.PROM:
+        callback = PrometheusProgressCallback()
+    else:  # STDOUT (default)
+        callback = TerminalProgressUI(enabled=verbose)
+
+    reporter.subscribe(callback)
+
+    # Report start
+    reporter.report(
+        ProgressPhase.STARTING, f"Starting sync for {target_account}", account=target_account
+    )
+
+    # Parse mbsync output for progress tracking
+    parser = MbsyncParser(reporter, target_account)
+
+    # Use context manager only for TerminalProgressUI
+    if isinstance(callback, TerminalProgressUI):
+        with callback.activate():
+            result = run_command(
+                cmd,
+                stream=verbose,
+                progress_reporter=reporter,
+                line_parser=parser.parse_line,
+            )
+    else:
+        result = run_command(
+            cmd,
+            stream=verbose,
+            progress_reporter=reporter,
+            line_parser=parser.parse_line,
+        )
+        # Close file callback if needed
+        if isinstance(callback, FileProgressCallback):
+            callback.close()
 
     # Write log
     acct_name = account or "default"
@@ -73,8 +122,17 @@ def run_sync(
         print(f"Log written to {log_path}")
 
     if result.ok:
-        print(f"Sync completed successfully ({result.duration_seconds:.1f}s)")
+        reporter.report(
+            ProgressPhase.COMPLETED,
+            f"Sync completed ({result.duration_seconds:.1f}s)",
+            account=target_account,
+        )
+        if not verbose:  # Only print summary if not showing progress
+            print(f"Sync completed successfully ({result.duration_seconds:.1f}s)")
     else:
+        reporter.report(
+            ProgressPhase.FAILED, f"Sync failed (exit {result.exit_code})", account=target_account
+        )
         print(f"Sync failed (exit {result.exit_code})")
         if result.stderr:
             print(f"stderr: {result.stderr[:500]}")

@@ -74,6 +74,19 @@ Verification reports MUST:
 - record timestamp, account, command exit codes, message counts, and oldest/newest coverage
 - fail closed (if checks cannot run, status is FAIL)
 
+## Progress reporting
+The tool includes a configurable progress reporting system with three backends:
+- **stdout** (default): Interactive progress bars in the terminal using Rich library
+- **file**: Structured JSON events (JSONL format) for log aggregation and analysis
+- **prom**: Prometheus metrics export (stub implementation, ready for integration)
+
+The backend is configured via `[orchestration]` in config.toml:
+```toml
+[orchestration]
+progress_backend = "stdout"  # or "file" or "prom"
+progress_file = "~/.local/state/email-archiver/progress.jsonl"  # required if backend is "file"
+```
+
 ## Development commands
 All common tasks are exposed via the root `Makefile`. **Always use these targets** rather than invoking tools directly, and **update the Makefile** when adding new tools, scripts, or important commands.
 
@@ -81,8 +94,9 @@ All common tasks are exposed via the root `Makefile`. **Always use these targets
 # Python (runs inside .venv)
 make test            # pytest unit tests
 make lint            # ruff linter
+make format          # auto-format code with ruff
 make format-check    # ruff format check (no writes)
-make check           # lint + test (quick pre-commit gate)
+make check           # format + lint + test (quick pre-commit gate)
 
 # Container (podman)
 make build           # build the email-archiver image
@@ -97,7 +111,8 @@ make clean           # remove test artifacts and image
 Run `make help` for the full list.
 
 ## Contribution guidelines for agents
-- **Run `make check` after every code change** to verify nothing is broken.
+- **Run `make check` after every code change** to verify nothing is broken. This automatically formats code, runs linting, and executes all tests.
+- Code is auto-formatted with `ruff format` as part of `make check`. Do not manually format code.
 - Keep changes aligned with `PLAN.md`.
 - Prefer small, testable modules (config parsing, subprocess runner, report generation).
 - Never hardcode or commit secrets. The IMAP password is provided exclusively via `/run/secrets/imap_password`.

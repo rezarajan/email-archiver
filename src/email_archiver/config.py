@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -48,9 +49,19 @@ class BackupConfig:
     command: str = ""
 
 
+class ProgressBackend(str, Enum):
+    """Progress reporting backend options."""
+
+    STDOUT = "stdout"  # Terminal output with progress bars (default)
+    FILE = "file"  # Structured log file output
+    PROM = "prom"  # Prometheus metrics export (future)
+
+
 @dataclass
 class OrchestrationConfig:
     backup_after_verify: bool = True
+    progress_backend: ProgressBackend = ProgressBackend.STDOUT
+    progress_file: Path | None = None  # Required if progress_backend is FILE
 
 
 @dataclass
@@ -113,8 +124,23 @@ def _parse_backup(raw: dict[str, Any]) -> BackupConfig:
 
 
 def _parse_orchestration(raw: dict[str, Any]) -> OrchestrationConfig:
+    backend_str = raw.get("progress_backend", "stdout")
+    try:
+        backend = ProgressBackend(backend_str)
+    except ValueError:
+        valid = ", ".join([b.value for b in ProgressBackend])
+        raise ConfigError(f"Invalid progress_backend '{backend_str}'. Valid options: {valid}")
+
+    progress_file = None
+    if backend == ProgressBackend.FILE:
+        if "progress_file" not in raw:
+            raise ConfigError("progress_file is required when progress_backend is 'file'")
+        progress_file = expand_path(raw["progress_file"])
+
     return OrchestrationConfig(
         backup_after_verify=raw.get("backup_after_verify", True),
+        progress_backend=backend,
+        progress_file=progress_file,
     )
 
 
