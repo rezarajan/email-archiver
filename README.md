@@ -185,11 +185,39 @@ command = "restic backup ~/Mail/imap"
 
 [orchestration]
 backup_after_verify = true
+progress_backend = "stdout"  # or "file" or "prom"
+# progress_file = "~/.local/state/email-archiver/progress.jsonl"  # required if backend is "file"
 ```
 
 **What gets auto-generated:** mbsync config, notmuch config, and the notmuch database (on first run). These are written to `<state_dir>/generated/`.
 
 **Password:** Always read from `/run/secrets/imap_password`. In containers this is a bind mount; on bare metal, write or symlink the file.
+
+### Progress Reporting
+
+The tool includes a configurable progress reporting system with three backends:
+
+- **stdout** (default): Interactive progress bars and status updates in the terminal (enabled with `--verbose` flag)
+- **file**: Structured JSON events (JSONL format) written to a log file for parsing and integration with log aggregation tools
+- **prom**: Prometheus metrics export (stub implementation, ready for integration)
+
+Configure in `config.toml`:
+
+```toml
+[orchestration]
+progress_backend = "stdout"  # Terminal output (default)
+# progress_backend = "file"    # JSONL log file
+# progress_file = "~/.local/state/email-archiver/progress.jsonl"
+# progress_backend = "prom"    # Prometheus (stub)
+```
+
+**File backend**: Each operation emits structured JSON events that can be parsed by log aggregators or monitoring tools. Example event:
+
+```json
+{"timestamp": "2026-02-09T12:00:00Z", "phase": "syncing", "message": "Syncing primary", "current": 50, "total": 100, "account": "primary"}
+```
+
+**Prometheus backend**: Currently a stub that logs to console. To complete the implementation, add `prometheus_client` dependency and export metrics via HTTP endpoint or pushgateway.
 
 ## Scheduling
 
@@ -226,8 +254,9 @@ All tasks use the Makefile:
 
 ```bash
 make test            # pytest
-make lint            # ruff
-make check           # lint + test
+make lint            # ruff linter
+make format          # auto-format code with ruff
+make check           # format + lint + test (run before commits)
 make build           # build container image
 make test-docker     # container integration tests
 make test-all        # everything

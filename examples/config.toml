@@ -27,3 +27,10 @@ command = "restic backup ~/Mail/imap"
 [orchestration]
 # If true, `run` will call backup after verify succeeds
 backup_after_verify = true
+
+# Progress reporting backend: "stdout" (default), "file", or "prom"
+progress_backend = "stdout"
+
+# Required if progress_backend = "file"
+# Writes structured JSON events (JSONL format) for log aggregation
+# progress_file = "~/.local/state/email-archiver/progress.jsonl"

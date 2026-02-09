@@ -36,15 +36,28 @@ Current contents:
 - Backup runs only after verification succeeds
 - Destructive deletion remains gated and intentionally high-friction
 
+## Progress reporting
+The tool includes configurable progress reporting with three backends:
+- **stdout** (default): Interactive progress bars with Rich
+- **file**: Structured JSONL output for log aggregation
+- **prom**: Prometheus metrics (stub, ready for integration)
+
+Configure via `[orchestration]` in config.toml:
+```toml
+progress_backend = "stdout"  # or "file" or "prom"
+progress_file = "~/.local/state/email-archiver/progress.jsonl"  # if backend is "file"
+```
+
 ## Build / test commands
 
 All tasks are exposed via the root Makefile:
 
 ```bash
 # Python checks (runs inside .venv)
-make check           # lint + format-check + test (run this before every commit)
+make check           # format + lint + test (run this before every commit)
 make test            # pytest unit tests only
 make lint            # ruff linter only
+make format          # auto-format code with ruff
 make format-check    # ruff format check only
 
 # Container
@@ -53,4 +66,4 @@ make test-docker     # container smoke tests
 make test-all        # everything: Python + container
 ```
 
-**IMPORTANT**: Always run `make check` after making code changes. This runs lint, format-check, and all 52 unit tests. The CI pipeline runs the same checks on every push.
+**IMPORTANT**: Always run `make check` after making code changes. This automatically formats code, runs lint, and executes all tests. The CI pipeline runs the same checks on every push.
