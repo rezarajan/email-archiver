@@ -11,19 +11,22 @@ class MbsyncParser:
     """Parse mbsync output to track sync progress.
 
     mbsync output patterns (varies by version and verbosity):
-    - Channel patterns: "C: 1/1  B: 123/456  M: +1/0  S: +2/0  *3"
-    - Message operations: "Pulling...", "Pushing...", "Syncing..."
-    - Completion: "Complete", "Done"
+    - Message counts: "near side: 123 messages, 0 recent"
+    - Message counts: "far side: 456 messages, 0 recent"
+    - Operations: "Channels: 1  Boxes: 1  Far: +10 *2 #1 -0  Near: +5 *1 #0 -0"
+    - Legacy pattern: "C: 1/1  B: 123/456  M: +1/0  S: +2/0  *3"
 
-    This parser extracts message counts and emits progress events.
+    This parser extracts message counts and sync operations.
     """
 
     def __init__(self, reporter: ProgressReporter, account: str) -> None:
         self.reporter = reporter
         self.account = account
-        self.current_total = 0
-        self.current_synced = 0
+        self.near_total = 0
+        self.far_total = 0
+        self.operations_count = 0
         self._started = False
+        self._syncing_started = False
 
     def parse_line(self, line: str) -> None:
         """Parse a single line of mbsync output."""
@@ -35,15 +38,80 @@ class MbsyncParser:
                 account=self.account,
             )
 
-        # Pattern: "C: 1/1  B: 123/456" - extracting message counts
-        # B: shows messages being processed (current/total)
+        # Pattern: "near side: 123 messages, 0 recent"
+        match = re.search(r"near side:\s+(\d+)\s+messages?", line)
+        if match:
+            self.near_total = int(match.group(1))
+
+        # Pattern: "far side: 456 messages, 0 recent"
+        match = re.search(r"far side:\s+(\d+)\s+messages?", line)
+        if match:
+            self.far_total = int(match.group(1))
+
+        # Pattern: "Synchronizing..."
+        if "Synchronizing" in line:
+            self._syncing_started = True
+            total = max(self.near_total, self.far_total)
+            if total > 0:
+                self.reporter.report(
+                    ProgressPhase.SYNCING,
+                    f"Synchronizing {self.account} ({total} messages)",
+                    current=0,
+                    total=total,
+                    account=self.account,
+                )
+
+        # Pattern: "Channels: 1  Boxes: 1  Far: +10 *2 #1 -0  Near: +5 *1 #0 -0"
+        # This shows operations: +N (new), *N (flags), #N (deleted), -N (expunged)
+        if self._syncing_started and "Far:" in line and "Near:" in line:
+            # Extract Far operations
+            far_match = re.search(r"Far:\s+\+(\d+)\s+\*(\d+)\s+#(\d+)", line)
+            near_match = re.search(r"Near:\s+\+(\d+)\s+\*(\d+)\s+#(\d+)", line)
+
+            if far_match and near_match:
+                far_new = int(far_match.group(1))
+                far_flags = int(far_match.group(2))
+                far_deleted = int(far_match.group(3))
+                near_new = int(near_match.group(1))
+                near_flags = int(near_match.group(2))
+                near_deleted = int(near_match.group(3))
+
+                # Count total operations
+                total_ops = far_new + far_flags + far_deleted + near_new + near_flags + near_deleted
+                self.operations_count += total_ops
+
+                if total_ops > 0:
+                    # Build descriptive message
+                    parts = []
+                    if near_new > 0:
+                        parts.append(f"+{near_new} downloaded")
+                    if far_new > 0:
+                        parts.append(f"+{far_new} uploaded")
+                    if near_flags > 0 or far_flags > 0:
+                        parts.append(f"*{near_flags + far_flags} updated")
+                    if near_deleted > 0 or far_deleted > 0:
+                        parts.append(f"#{near_deleted + far_deleted} deleted")
+
+                    message = (
+                        f"Syncing {self.account}: {', '.join(parts)}"
+                        if parts
+                        else f"Syncing {self.account}"
+                    )
+                    total = max(self.near_total, self.far_total)
+                    self.reporter.report(
+                        ProgressPhase.SYNCING,
+                        message,
+                        current=self.operations_count,
+                        total=total if total > 0 else None,
+                        account=self.account,
+                    )
+
+        # Legacy pattern: "C: 1/1  B: 123/456" for older mbsync versions
         match = re.search(r"B:\s+(\d+)/(\d+)", line)
         if match:
             current = int(match.group(1))
             total = int(match.group(2))
             if total > 0:
-                self.current_total = max(self.current_total, total)
-                self.current_synced = current
                 self.reporter.report(
                     ProgressPhase.SYNCING,
                     f"Syncing {self.account}",
@@ -52,21 +120,22 @@ class MbsyncParser:
                     account=self.account,
                 )
 
-        # Look for completion messages
-        if "Complete" in line or "Done" in line or line.startswith("C: "):
-            # Extract channel completion pattern "C: 1/1"
-            channel_match = re.search(r"C:\s+(\d+)/(\d+)", line)
-            if channel_match:
-                current = int(channel_match.group(1))
-                total = int(channel_match.group(2))
-                if current == total:
-                    self.reporter.report(
-                        ProgressPhase.COMPLETED,
-                        f"Sync completed for {self.account}",
-                        current=self.current_synced,
-                        total=self.current_total if self.current_total > 0 else None,
-                        account=self.account,
-                    )
+        # Final completion line (appears after all operations)
+        if (
+            self._syncing_started
+            and line.startswith("Channels:")
+            and "Far: +0 *0 #0 -0" in line
+            and "Near: +0 *0 #0 -0" in line
+        ):
+            # This is the final summary line with no operations
+            total = max(self.near_total, self.far_total)
+            self.reporter.report(
+                ProgressPhase.COMPLETED,
+                f"Sync completed: {total} messages",
+                current=total,
+                total=total if total > 0 else None,
+                account=self.account,
+            )
 
 
 class NotmuchParser:

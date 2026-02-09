@@ -89,9 +89,6 @@ def run_index(
             progress_reporter=reporter,
             line_parser=parser.parse_line,
         )
-        # Close file callback if needed
-        if isinstance(callback, FileProgressCallback):
-            callback.close()
 
     if result.ok:
         if not verbose:  # Only print summary if not showing progress
@@ -103,5 +100,9 @@ def run_index(
         print(f"Index failed (exit {result.exit_code})")
         if result.stderr:
             print(f"stderr: {result.stderr[:500]}")
+
+    # Close file callback after all events have been emitted
+    if isinstance(callback, FileProgressCallback):
+        callback.close()
 
     return result
